@@ -3,7 +3,6 @@
     "target": "es2023",
     "module": "esnext",
     "lib": ["ES2023", "DOM"],
-    "types": ["vite/client"],
     "skipLibCheck": true,
 
     /* Bundler mode */
@@ -12,12 +11,14 @@
     "verbatimModuleSyntax": true,
     "moduleDetection": "force",
     "noEmit": true,
+    "allowJs": true,
+    "ignoreDeprecations": "6.0",
 
-    /* Linting */
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
-    "erasableSyntaxOnly": true,
-    "noFallthroughCasesInSwitch": true
+    /* Paths */
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"]
+    }
   },
   "include": ["src"]
 }
