@@ -25,25 +25,84 @@
       </div>
 
       <!-- Auth (right) -->
-      <div class="flex items-center justify-end">
+      <div class="flex items-center justify-end gap-3">
+
+        <!-- Logged in -->
+        <template v-if="authStore.isLoggedIn">
+          <RouterLink to="/orders" class="text-gray-500 hover:text-gray-800 transition-colors">
+            <ShoppingBag class="w-5 h-5" />
+          </RouterLink>
+          <div class="relative" ref="dropdownRef">
+            <button
+              @click="dropdownOpen = !dropdownOpen"
+              class="flex items-center gap-2 pl-2 pr-3 py-1.5 rounded-xl hover:bg-gray-100 transition-colors"
+            >
+              <div class="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold" style="background:#ff5722">
+                {{ userInitial }}
+              </div>
+              <span class="text-sm font-medium text-gray-700">{{ userName }}</span>
+              <ChevronDown class="w-3.5 h-3.5 text-gray-400" />
+            </button>
+
+            <!-- Dropdown -->
+            <div v-if="dropdownOpen" class="absolute right-0 mt-2 w-44 bg-white border border-gray-100 rounded-xl shadow-lg py-1 z-50">
+              <RouterLink to="/orders" @click="dropdownOpen = false" class="flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                <ClipboardList class="w-4 h-4 text-gray-400" /> My orders
+              </RouterLink>
+              <RouterLink to="/notifications" @click="dropdownOpen = false" class="flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                <Bell class="w-4 h-4 text-gray-400" /> Notifications
+              </RouterLink>
+              <hr class="my-1 border-gray-100" />
+              <button @click="handleLogout" class="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 transition-colors">
+                <LogOut class="w-4 h-4" /> Log out
+              </button>
+            </div>
+          </div>
+        </template>
+
+        <!-- Logged out -->
         <RouterLink
-          to="/login"
-          class="px-4 py-2 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors"
+          v-else
+          to="/auth"
+          class="px-4 py-2 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-100 hover:text-gray-900 active:scale-95 transition-all"
         >
           Log in
         </RouterLink>
-      </div>
 
+      </div>
     </div>
   </header>
 </template>
 
 <script setup>
-import { ref } from 'vue'
-import { Search, UtensilsCrossed } from '@lucide/vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { useRouter } from 'vue-router'
+import { Search, UtensilsCrossed, ShoppingBag, ChevronDown, LogOut, ClipboardList, Bell } from '@lucide/vue'
+import { useAuthStore } from '@/stores/auth'
 
+const router = useRouter()
+const authStore = useAuthStore()
 const search = ref('')
+const dropdownOpen = ref(false)
+const dropdownRef = ref(null)
 
 defineEmits(['search'])
 
+const userName = computed(() => authStore.user?.name ?? authStore.user?.role ?? 'Account')
+const userInitial = computed(() => userName.value.charAt(0).toUpperCase())
+
+function handleLogout() {
+  authStore.logout()
+  dropdownOpen.value = false
+  router.push('/auth')
+}
+
+function handleClickOutside(e) {
+  if (dropdownRef.value && !dropdownRef.value.contains(e.target)) {
+    dropdownOpen.value = false
+  }
+}
+
+onMounted(() => document.addEventListener('click', handleClickOutside))
+onUnmounted(() => document.removeEventListener('click', handleClickOutside))
 </script>

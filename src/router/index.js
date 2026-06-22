@@ -4,8 +4,7 @@ const router = createRouter({
   history: createWebHistory(),
   routes: [
     // Auth
-    { path: '/login', component: () => import('@/views/auth/LoginView.vue') },
-    { path: '/register', component: () => import('@/views/auth/RegisterView.vue') },
+    { path: '/auth', component: () => import('@/views/auth/AuthView.vue') },
 
     // Customer
     { path: '/', redirect: '/restaurants' },
