@@ -29,8 +29,15 @@
 
         <!-- Logged in -->
         <template v-if="authStore.isLoggedIn">
-          <RouterLink to="/orders" class="text-gray-500 hover:text-gray-800 transition-colors">
-            <ShoppingBag class="w-5 h-5" />
+          <RouterLink to="/cart" class="relative text-gray-500 hover:text-gray-800 transition-colors">
+            <ShoppingCart class="w-5 h-5" />
+            <span
+              v-if="cartStore.totalItems > 0"
+              class="absolute -top-2 -right-2 w-4 h-4 rounded-full text-white text-[10px] font-bold flex items-center justify-center"
+              style="background:#ff5722"
+            >
+              {{ cartStore.totalItems > 9 ? '9+' : cartStore.totalItems }}
+            </span>
           </RouterLink>
           <div class="relative" ref="dropdownRef">
             <button
@@ -77,11 +84,13 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { Search, UtensilsCrossed, ShoppingBag, ChevronDown, LogOut, ClipboardList, Bell } from '@lucide/vue'
+import { Search, UtensilsCrossed, ShoppingCart, ChevronDown, LogOut, ClipboardList, Bell } from '@lucide/vue'
 import { useAuthStore } from '@/stores/auth'
+import { useCartStore } from '@/stores/cart'
 
 const router = useRouter()
 const authStore = useAuthStore()
+const cartStore = useCartStore()
 const search = ref('')
 const dropdownOpen = ref(false)
 const dropdownRef = ref(null)

@@ -11,20 +11,87 @@
       </div>
     </section>
 
+    <!-- Ads Swiper Carousel -->
+    <section v-if="ads.length > 0" class="max-w-7xl mx-auto px-4 sm:px-6 pt-6">
+      <div class="relative overflow-hidden rounded-2xl">
+
+        <!-- Slides -->
+        <div
+          class="flex transition-transform duration-500 ease-in-out"
+          :style="{ transform: `translateX(-${activeSlide * 100}%)` }"
+        >
+          <div
+            v-for="ad in ads"
+            :key="ad.id"
+            class="shrink-0 w-full h-48 sm:h-64 relative"
+          >
+            <img
+              v-if="ad.image_ads"
+              :src="ad.image_ads"
+              :alt="ad.promotion"
+              class="w-full h-full object-cover"
+            />
+            <div
+              v-else
+              class="w-full h-full flex items-center justify-center text-white text-xl font-bold"
+              style="background: linear-gradient(135deg, #ff5722, #ff8a65)"
+            >
+              {{ ad.promotion }}
+            </div>
+
+            <!-- Promotion badge -->
+            <span
+              v-if="ad.promotion"
+              class="absolute bottom-4 left-4 bg-black/50 text-white text-sm font-semibold px-3 py-1 rounded-full backdrop-blur-sm"
+            >
+              {{ ad.promotion }}
+            </span>
+          </div>
+        </div>
+
+        <!-- Prev / Next buttons -->
+        <button
+          v-if="ads.length > 1"
+          class="absolute left-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/30 text-white flex items-center justify-center hover:bg-black/50 transition backdrop-blur-sm"
+          @click="prevSlide"
+        >
+          <ChevronLeft class="w-4 h-4" />
+        </button>
+        <button
+          v-if="ads.length > 1"
+          class="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/30 text-white flex items-center justify-center hover:bg-black/50 transition backdrop-blur-sm"
+          @click="nextSlide"
+        >
+          <ChevronRight class="w-4 h-4" />
+        </button>
+
+        <!-- Dots -->
+        <div v-if="ads.length > 1" class="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5">
+          <button
+            v-for="(_, i) in ads"
+            :key="i"
+            class="w-2 h-2 rounded-full transition-all"
+            :class="i === activeSlide ? 'bg-white w-5' : 'bg-white/50'"
+            @click="goToSlide(i)"
+          />
+        </div>
+      </div>
+    </section>
+
     <!-- Category pills -->
     <section class="max-w-7xl mx-auto px-4 sm:px-6 py-6">
       <div class="flex gap-2 overflow-x-auto pb-1">
         <button
           v-for="cat in categories"
           :key="cat.id"
-          @click="activeCategory = cat.id"
+          @click="activeCategory = cat.id === 'all' ? 'all' : cat.name"
           class="shrink-0 px-4 py-2 rounded-full text-sm font-medium border transition-all"
-          :class="activeCategory === cat.id
+          :class="activeCategory === (cat.id === 'all' ? 'all' : cat.name)
             ? 'text-white border-transparent'
             : 'bg-white text-gray-600 border-gray-200 hover:border-orange-300'"
-          :style="activeCategory === cat.id ? 'background:#ff5722; border-color:#ff5722' : ''"
+          :style="activeCategory === (cat.id === 'all' ? 'all' : cat.name) ? 'background:#ff5722; border-color:#ff5722' : ''"
         >
-          {{ cat.icon }} {{ cat.label }}
+          {{ cat.name }}
         </button>
       </div>
     </section>
@@ -32,51 +99,58 @@
     <!-- Restaurants grid -->
     <section class="max-w-7xl mx-auto px-4 sm:px-6 pb-16">
       <h2 class="text-xl font-bold text-gray-900 mb-5">
-        {{ activeCategory === 'all' ? 'All Restaurants' : categories.find(c => c.id === activeCategory)?.label }}
-        <span class="text-gray-400 font-normal text-base ml-1">({{ filteredRestaurants.length }})</span>
+        {{ activeCategory === 'all' ? 'All Restaurants' : activeCategory }}
+        <span class="text-gray-400 font-normal text-base ml-1">({{ restaurants.length }})</span>
       </h2>
 
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+      <!-- Loading skeleton -->
+      <div v-if="loading" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+        <div v-for="n in 8" :key="n" class="bg-white rounded-2xl overflow-hidden shadow-sm animate-pulse">
+          <div class="h-44 bg-gray-200" />
+          <div class="p-4 space-y-2">
+            <div class="h-4 bg-gray-200 rounded w-3/4" />
+            <div class="h-3 bg-gray-200 rounded w-1/2" />
+            <div class="h-3 bg-gray-200 rounded w-1/3" />
+          </div>
+        </div>
+      </div>
+
+      <!-- Empty -->
+      <div v-else-if="restaurants.length === 0" class="text-center py-20 text-gray-400">
+        No restaurants found in this category.
+      </div>
+
+      <!-- Grid -->
+      <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
         <RouterLink
-          v-for="restaurant in filteredRestaurants"
+          v-for="restaurant in restaurants"
           :key="restaurant.id"
           :to="`/restaurants/${restaurant.id}`"
           class="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all group"
         >
-          <!-- Thumbnail -->
-          <div class="relative h-44 overflow-hidden">
+          <div class="relative h-44 overflow-hidden bg-gray-100">
             <img
-              :src="restaurant.image"
+              v-if="restaurant.restaurant_img"
+              :src="restaurant.restaurant_img"
               :alt="restaurant.name"
               class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
             />
-            <div class="absolute top-3 left-3 flex gap-1">
-              <span v-if="restaurant.isNew" class="bg-green-500 text-white text-xs font-semibold px-2 py-0.5 rounded-full">New</span>
-              <span v-if="restaurant.discount" class="text-white text-xs font-semibold px-2 py-0.5 rounded-full" style="background:#ff5722">{{ restaurant.discount }}</span>
-            </div>
+            <div v-else class="w-full h-full flex items-center justify-center text-gray-300 text-4xl">🍽️</div>
+
+            <span
+              class="absolute top-3 left-3 text-white text-xs font-semibold px-2 py-0.5 rounded-full"
+              :class="restaurant.is_open ? 'bg-green-500' : 'bg-gray-400'"
+            >
+              {{ restaurant.is_open ? 'Open' : 'Closed' }}
+            </span>
           </div>
 
-          <!-- Info -->
           <div class="p-4">
             <h3 class="font-bold text-gray-900 text-base truncate">{{ restaurant.name }}</h3>
-            <p class="text-gray-500 text-sm mt-0.5 truncate">{{ restaurant.cuisine }}</p>
-
-            <div class="flex items-center gap-3 mt-3 text-sm text-gray-500">
-              <span class="flex items-center gap-1">
-                <Star class="w-4 h-4 text-yellow-400 fill-yellow-400" />
-                <span class="font-medium text-gray-700">{{ restaurant.rating }}</span>
-                <span>({{ restaurant.reviews }})</span>
-              </span>
-              <span class="text-gray-300">·</span>
-              <span class="flex items-center gap-1">
-                <Clock class="w-4 h-4" />
-                {{ restaurant.deliveryTime }} min
-              </span>
-              <span class="text-gray-300">·</span>
-              <span class="flex items-center gap-1">
-                <Bike class="w-4 h-4" />
-                {{ restaurant.deliveryFee === 0 ? 'Free' : `$${restaurant.deliveryFee}` }}
-              </span>
+            <p class="text-gray-500 text-sm mt-0.5 truncate">{{ restaurant.description ?? restaurant.address }}</p>
+            <div class="flex items-center gap-1 mt-2 text-sm text-gray-400">
+              <MapPin class="w-3.5 h-3.5 shrink-0" />
+              <span class="truncate">{{ restaurant.address }}</span>
             </div>
           </div>
         </RouterLink>
@@ -87,37 +161,72 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
-import { Star, Clock, Bike } from '@lucide/vue'
+import { ref, watch, onMounted, onUnmounted } from 'vue'
+import { MapPin, ChevronLeft, ChevronRight } from '@lucide/vue'
+import { categoryApi, restaurantApi, adsApi } from '@/api/restaurant'
 
 const activeCategory = ref('all')
+const categories = ref([{ id: 'all', name: 'All' }])
+const restaurants = ref([])
+const loading = ref(false)
+const ads = ref([])
 
-const categories = [
-  { id: 'all',     icon: '🍽️', label: 'All' },
-  { id: 'burgers', icon: '🍔', label: 'Burgers' },
-  { id: 'pizza',   icon: '🍕', label: 'Pizza' },
-  { id: 'sushi',   icon: '🍣', label: 'Sushi' },
-  { id: 'asian',   icon: '🍜', label: 'Asian' },
-  { id: 'salads',  icon: '🥗', label: 'Salads' },
-  { id: 'desserts',icon: '🍰', label: 'Desserts' },
-  { id: 'drinks',  icon: '🥤', label: 'Drinks' },
-]
+// Swiper state
+const activeSlide = ref(0)
+let autoPlayTimer = null
 
-// Mock data — replace with GET /restaurants once backend is ready
-const restaurants = [
-  { id: 1, name: 'Burger Palace',    cuisine: 'American · Burgers',  category: 'burgers', image: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=600&q=80', rating: 4.8, reviews: 342, deliveryTime: 25, deliveryFee: 0,    isNew: false, discount: '20% OFF' },
-  { id: 2, name: 'Pizza Napoli',     cuisine: 'Italian · Pizza',     category: 'pizza',   image: 'https://images.unsplash.com/photo-1604068549290-dea0e4a305ca?w=600&q=80', rating: 4.6, reviews: 218, deliveryTime: 30, deliveryFee: 1.99, isNew: false, discount: null },
-  { id: 3, name: 'Tokyo Sushi Bar',  cuisine: 'Japanese · Sushi',    category: 'sushi',   image: 'https://images.unsplash.com/photo-1579871494447-9811cf80d66c?w=600&q=80', rating: 4.9, reviews: 487, deliveryTime: 35, deliveryFee: 0,    isNew: true,  discount: null },
-  { id: 4, name: 'Pho Saigon',       cuisine: 'Vietnamese · Asian',  category: 'asian',   image: 'https://images.unsplash.com/photo-1555126634-323283e090fa?w=600&q=80', rating: 4.7, reviews: 156, deliveryTime: 20, deliveryFee: 0.99, isNew: true,  discount: null },
-  { id: 5, name: 'Green Bowl',       cuisine: 'Healthy · Salads',    category: 'salads',  image: 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=600&q=80', rating: 4.5, reviews: 93,  deliveryTime: 15, deliveryFee: 0,    isNew: false, discount: null },
-  { id: 6, name: 'Sweet Tooth',      cuisine: 'Desserts · Cakes',    category: 'desserts',image: 'https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=600&q=80', rating: 4.7, reviews: 201, deliveryTime: 20, deliveryFee: 1.49, isNew: false, discount: '15% OFF' },
-  { id: 7, name: 'The Grill House',  cuisine: 'American · BBQ',      category: 'burgers', image: 'https://images.unsplash.com/photo-1544025162-d76694265947?w=600&q=80', rating: 4.6, reviews: 314, deliveryTime: 30, deliveryFee: 0,    isNew: false, discount: null },
-  { id: 8, name: 'Bubble Tea House', cuisine: 'Drinks · Asian',      category: 'drinks',  image: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=600&q=80', rating: 4.4, reviews: 128, deliveryTime: 15, deliveryFee: 0.99, isNew: true,  discount: null },
-]
+function nextSlide() {
+  activeSlide.value = (activeSlide.value + 1) % ads.value.length
+}
+function prevSlide() {
+  activeSlide.value = (activeSlide.value - 1 + ads.value.length) % ads.value.length
+}
+function goToSlide(i) {
+  activeSlide.value = i
+}
+function startAutoPlay() {
+  if (ads.value.length > 1) {
+    autoPlayTimer = setInterval(nextSlide, 3500)
+  }
+}
+function stopAutoPlay() {
+  clearInterval(autoPlayTimer)
+}
 
-const filteredRestaurants = computed(() =>
-  activeCategory.value === 'all'
-    ? restaurants
-    : restaurants.filter(r => r.category === activeCategory.value)
-)
+async function fetchRestaurants(category) {
+  loading.value = true
+  try {
+    if (category === 'all') {
+      const res = await restaurantApi.getAll()
+      restaurants.value = res.data
+    } else {
+      const res = await categoryApi.getRestaurants(category)
+      restaurants.value = res.data
+    }
+  } catch {
+    restaurants.value = []
+  } finally {
+    loading.value = false
+  }
+}
+
+onMounted(async () => {
+  const [catRes] = await Promise.allSettled([
+    categoryApi.getAll(),
+    adsApi.getAll().then((r) => {
+      ads.value = r.data
+      startAutoPlay()
+    }).catch(() => {}),
+  ])
+
+  if (catRes.status === 'fulfilled') {
+    categories.value = [{ id: 'all', name: 'All' }, ...catRes.value.data]
+  }
+
+  await fetchRestaurants('all')
+})
+
+onUnmounted(stopAutoPlay)
+
+watch(activeCategory, (val) => fetchRestaurants(val))
 </script>

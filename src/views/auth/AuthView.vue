@@ -184,6 +184,15 @@ import { useAuthStore } from '@/stores/auth'
 const router = useRouter()
 const authStore = useAuthStore()
 
+function redirectByRole() {
+  const role = authStore.user?.role ?? authStore.user?.roles?.[0]
+  if (role === 'ADMIN' || role === 'SUPERADMIN') {
+    router.push('/admin/users')
+  } else {
+    router.push('/')
+  }
+}
+
 // 'signin' | 'signup' | 'otp' | 'details'
 const mode = ref('signin')
 const loading = ref(false)
@@ -272,7 +281,8 @@ async function handleRegister() {
     })
     const { access_token, refresh_token } = res.data
     authStore.setTokens(access_token, refresh_token)
-    router.push('/')
+    await authStore.fetchMe()
+    redirectByRole()
   } catch (e) {
     error.value = e?.response?.data?.message ?? 'Registration failed. Please try again.'
   } finally {
@@ -287,7 +297,8 @@ async function handleSignIn() {
     const res = await authApi.login(signIn.value.email, signIn.value.password)
     const { access_token, refresh_token } = res.data
     authStore.setTokens(access_token, refresh_token)
-    router.push('/')
+    await authStore.fetchMe()
+    redirectByRole()
   } catch (e) {
     error.value = e?.response?.data?.message ?? 'Invalid email or password.'
   } finally {

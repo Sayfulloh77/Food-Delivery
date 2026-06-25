@@ -6,4 +6,7 @@ export const authApi = {
   register: (data) => http.auth.post('/auth/register', data),
   // data: { name, email, password, role_id: 1, otpToken }
   login: (email, password) => http.auth.post('/auth/login', { email, password }),
+  me: () => http.auth.get('/auth/me'),
+  logout: () => http.auth.get('/auth/logout'),
+  refresh: (userId, refreshToken) => http.auth.post('/auth/refresh', { user_id: userId, refresh_token: refreshToken }),
 }
