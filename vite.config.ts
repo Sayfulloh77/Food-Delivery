@@ -23,6 +23,11 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/restaurant-api/, ''),
       },
+      '/order-api': {
+        target: 'http://18.212.91.176:8081',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/order-api/, ''),
+      },
     },
   },
 })

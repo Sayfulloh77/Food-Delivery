@@ -1,95 +1,78 @@
 <template>
-  <div class="bg-gray-50 min-h-screen">
+  <div class="min-h-screen" style="background:#060d1c">
 
-    <!-- Hero banner -->
-    <section class="text-white py-14 px-4" style="background: linear-gradient(135deg, #ff5722 0%, #ff8a65 100%)">
-      <div class="max-w-7xl mx-auto text-center">
-        <h1 class="text-4xl sm:text-5xl font-bold mb-3 tracking-tight">
-          Hungry? We've got you. 🍔
-        </h1>
-        <p class="text-orange-100 text-lg">Order from the best local restaurants — fast delivery, every time.</p>
+    <!-- Hero -->
+    <section class="relative px-4 pt-16 pb-12 text-center overflow-hidden">
+      <!-- Ambient glow blobs -->
+      <div class="absolute top-0 left-1/2 -translate-x-1/2 w-96 h-96 rounded-full opacity-10 blur-3xl pointer-events-none" style="background:radial-gradient(circle,#f97316,transparent 70%)"></div>
+      <div class="absolute top-10 left-1/4 w-64 h-64 rounded-full opacity-5 blur-3xl pointer-events-none" style="background:#3b82f6"></div>
+
+      <p class="relative text-xs font-bold tracking-widest text-orange-400 uppercase mb-3">🔥 Hot &amp; Fresh Near You</p>
+      <h1 class="relative text-4xl sm:text-6xl font-extrabold text-white tracking-tight mb-4 leading-tight">
+        Hungry? <br class="sm:hidden" />
+        <span style="background:linear-gradient(135deg,#f97316,#fbbf24);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">
+          We deliver.
+        </span>
+      </h1>
+      <p class="relative text-slate-400 text-base max-w-md mx-auto leading-relaxed">
+        Order from the best local restaurants — lightning fast delivery, every time.
+      </p>
+
+      <!-- Stats row -->
+      <div class="relative flex items-center justify-center gap-8 mt-8">
+        <div class="text-center">
+          <p class="text-2xl font-black text-white">{{ restaurants.length || '—' }}</p>
+          <p class="text-xs text-slate-500 mt-0.5">Restaurants</p>
+        </div>
+        <div class="w-px h-8" style="background:#1a2d4d"></div>
+        <div class="text-center">
+          <p class="text-2xl font-black text-emerald-400">{{ restaurants.filter(r => r.is_open).length }}</p>
+          <p class="text-xs text-slate-500 mt-0.5">Open now</p>
+        </div>
+        <div class="w-px h-8" style="background:#1a2d4d"></div>
+        <div class="text-center">
+          <p class="text-2xl font-black text-orange-400">{{ categories.length - 1 }}</p>
+          <p class="text-xs text-slate-500 mt-0.5">Categories</p>
+        </div>
       </div>
     </section>
 
-    <!-- Ads Swiper Carousel -->
-    <section v-if="ads.length > 0" class="max-w-7xl mx-auto px-4 sm:px-6 pt-6">
-      <div class="relative overflow-hidden rounded-2xl">
-
-        <!-- Slides -->
-        <div
-          class="flex transition-transform duration-500 ease-in-out"
-          :style="{ transform: `translateX(-${activeSlide * 100}%)` }"
-        >
-          <div
-            v-for="ad in ads"
-            :key="ad.id"
-            class="shrink-0 w-full h-48 sm:h-64 relative"
-          >
-            <img
-              v-if="ad.image_ads"
-              :src="ad.image_ads"
-              :alt="ad.promotion"
-              class="w-full h-full object-cover"
-            />
-            <div
-              v-else
-              class="w-full h-full flex items-center justify-center text-white text-xl font-bold"
-              style="background: linear-gradient(135deg, #ff5722, #ff8a65)"
-            >
-              {{ ad.promotion }}
-            </div>
-
-            <!-- Promotion badge -->
-            <span
-              v-if="ad.promotion"
-              class="absolute bottom-4 left-4 bg-black/50 text-white text-sm font-semibold px-3 py-1 rounded-full backdrop-blur-sm"
-            >
+    <!-- Ads Carousel -->
+    <section v-if="ads.length > 0" class="max-w-7xl mx-auto px-4 sm:px-6 pb-8">
+      <div class="relative overflow-hidden rounded-2xl" style="border:1px solid #1a2d4d">
+        <div class="flex transition-transform duration-500 ease-in-out" :style="{ transform: `translateX(-${activeSlide * 100}%)` }">
+          <div v-for="ad in ads" :key="ad.id" class="shrink-0 w-full h-52 sm:h-64 relative">
+            <img v-if="ad.image_ads" :src="ad.image_ads" :alt="ad.promotion" class="w-full h-full object-cover" />
+            <div v-else class="w-full h-full flex items-center justify-center font-bold text-xl text-white" style="background:#0d1b35">{{ ad.promotion }}</div>
+            <div class="absolute inset-0 bg-linear-to-t from-black/80 via-black/20 to-transparent" />
+            <span v-if="ad.promotion" class="absolute bottom-4 left-4 text-sm font-black px-3 py-1.5 rounded-full text-black" style="background:#f97316">
               {{ ad.promotion }}
             </span>
           </div>
         </div>
-
-        <!-- Prev / Next buttons -->
-        <button
-          v-if="ads.length > 1"
-          class="absolute left-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/30 text-white flex items-center justify-center hover:bg-black/50 transition backdrop-blur-sm"
-          @click="prevSlide"
-        >
+        <button v-if="ads.length > 1" class="absolute left-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/50 text-white flex items-center justify-center hover:bg-black/80 transition backdrop-blur-sm" @click="prevSlide">
           <ChevronLeft class="w-4 h-4" />
         </button>
-        <button
-          v-if="ads.length > 1"
-          class="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/30 text-white flex items-center justify-center hover:bg-black/50 transition backdrop-blur-sm"
-          @click="nextSlide"
-        >
+        <button v-if="ads.length > 1" class="absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/50 text-white flex items-center justify-center hover:bg-black/80 transition backdrop-blur-sm" @click="nextSlide">
           <ChevronRight class="w-4 h-4" />
         </button>
-
-        <!-- Dots -->
         <div v-if="ads.length > 1" class="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5">
-          <button
-            v-for="(_, i) in ads"
-            :key="i"
-            class="w-2 h-2 rounded-full transition-all"
-            :class="i === activeSlide ? 'bg-white w-5' : 'bg-white/50'"
-            @click="goToSlide(i)"
-          />
+          <button v-for="(_, i) in ads" :key="i" class="h-1.5 rounded-full transition-all" :class="i === activeSlide ? 'w-5' : 'bg-white/30 w-1.5'" :style="i === activeSlide ? 'background:#f97316' : ''" @click="goToSlide(i)" />
         </div>
       </div>
     </section>
 
     <!-- Category pills -->
-    <section class="max-w-7xl mx-auto px-4 sm:px-6 py-6">
-      <div class="flex gap-2 overflow-x-auto pb-1">
+    <section class="max-w-7xl mx-auto px-4 sm:px-6 pb-8">
+      <div class="flex gap-2 overflow-x-auto pb-1" style="scrollbar-width:none">
         <button
           v-for="cat in categories"
-          :key="cat.id"
+          :key="cat.id ?? cat.name"
           @click="activeCategory = cat.id === 'all' ? 'all' : cat.name"
-          class="shrink-0 px-4 py-2 rounded-full text-sm font-medium border transition-all"
-          :class="activeCategory === (cat.id === 'all' ? 'all' : cat.name)
-            ? 'text-white border-transparent'
-            : 'bg-white text-gray-600 border-gray-200 hover:border-orange-300'"
-          :style="activeCategory === (cat.id === 'all' ? 'all' : cat.name) ? 'background:#ff5722; border-color:#ff5722' : ''"
+          class="shrink-0 px-4 py-2 rounded-full text-sm font-semibold transition-all border"
+          :style="isActiveCategory(cat)
+            ? 'background:#f97316;border-color:#f97316;color:#000'
+            : 'background:#0d1b35;border-color:#1a2d4d;color:#64748b'"
         >
           {{ cat.name }}
         </button>
@@ -97,60 +80,67 @@
     </section>
 
     <!-- Restaurants grid -->
-    <section class="max-w-7xl mx-auto px-4 sm:px-6 pb-16">
-      <h2 class="text-xl font-bold text-gray-900 mb-5">
-        {{ activeCategory === 'all' ? 'All Restaurants' : activeCategory }}
-        <span class="text-gray-400 font-normal text-base ml-1">({{ restaurants.length }})</span>
-      </h2>
+    <section class="max-w-7xl mx-auto px-4 sm:px-6 pb-24">
+      <div class="flex items-center justify-between mb-6">
+        <h2 class="text-sm font-bold text-white">
+          {{ activeCategory === 'all' ? 'All Restaurants' : activeCategory }}
+          <span class="text-slate-600 font-normal ml-1">({{ restaurants.length }})</span>
+        </h2>
+      </div>
 
-      <!-- Loading skeleton -->
-      <div v-if="loading" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-        <div v-for="n in 8" :key="n" class="bg-white rounded-2xl overflow-hidden shadow-sm animate-pulse">
-          <div class="h-44 bg-gray-200" />
+      <!-- Skeleton -->
+      <div v-if="loading" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        <div v-for="n in 8" :key="n" class="rounded-2xl overflow-hidden animate-pulse" style="background:#0d1b35">
+          <div class="h-44" style="background:#1a2d4d" />
           <div class="p-4 space-y-2">
-            <div class="h-4 bg-gray-200 rounded w-3/4" />
-            <div class="h-3 bg-gray-200 rounded w-1/2" />
-            <div class="h-3 bg-gray-200 rounded w-1/3" />
+            <div class="h-4 rounded w-3/4" style="background:#1a2d4d" />
+            <div class="h-3 rounded w-1/2" style="background:#1a2d4d" />
           </div>
         </div>
       </div>
 
+      <!-- Server error -->
+      <div v-else-if="serverError" class="text-center py-24">
+        <div class="text-5xl mb-4">🔌</div>
+        <p class="text-white font-bold text-lg">Server is temporarily offline</p>
+        <p class="text-slate-500 text-sm mt-1">Our restaurant service is restarting. Please try again in a moment.</p>
+        <button class="mt-6 px-6 py-2.5 rounded-xl font-semibold text-black text-sm transition hover:opacity-90" style="background:#f97316" @click="retry">
+          Try again
+        </button>
+      </div>
+
       <!-- Empty -->
-      <div v-else-if="restaurants.length === 0" class="text-center py-20 text-gray-400">
-        No restaurants found in this category.
+      <div v-else-if="restaurants.length === 0" class="text-center py-20 text-slate-600">
+        No restaurants found.
       </div>
 
       <!-- Grid -->
-      <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+      <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
         <RouterLink
-          v-for="restaurant in restaurants"
-          :key="restaurant.id"
-          :to="`/restaurants/${restaurant.id}`"
-          class="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all group"
+          v-for="(r, i) in restaurants"
+          :key="r.id"
+          :to="`/restaurants/${r.id}`"
+          class="reveal rounded-2xl overflow-hidden border transition-all duration-300 group"
+          :class="`reveal-delay-${Math.min(i % 4 + 1, 4)}`"
+          style="background:#0d1b35;border-color:#1a2d4d"
+          onmouseover="this.style.borderColor='#f97316';this.style.transform='translateY(-4px)';this.style.boxShadow='0 16px 40px rgba(249,115,22,0.15)'"
+          onmouseout="this.style.borderColor='#1a2d4d';this.style.transform='';this.style.boxShadow=''"
         >
-          <div class="relative h-44 overflow-hidden bg-gray-100">
-            <img
-              v-if="restaurant.restaurant_img"
-              :src="restaurant.restaurant_img"
-              :alt="restaurant.name"
-              class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-            />
-            <div v-else class="w-full h-full flex items-center justify-center text-gray-300 text-4xl">🍽️</div>
+          <div class="relative h-44 overflow-hidden" style="background:#1a2d4d">
+            <img v-if="r.restaurant_img" :src="r.restaurant_img" :alt="r.name" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
+            <div v-else class="w-full h-full flex items-center justify-center text-5xl">🍽️</div>
+            <div class="absolute inset-0 bg-linear-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
 
-            <span
-              class="absolute top-3 left-3 text-white text-xs font-semibold px-2 py-0.5 rounded-full"
-              :class="restaurant.is_open ? 'bg-green-500' : 'bg-gray-400'"
-            >
-              {{ restaurant.is_open ? 'Open' : 'Closed' }}
+            <span class="absolute top-3 left-3 text-xs font-bold px-2.5 py-1 rounded-full" :class="r.is_open ? 'badge-open' : 'badge-closed'">
+              {{ r.is_open ? '● Open' : '● Closed' }}
             </span>
           </div>
-
           <div class="p-4">
-            <h3 class="font-bold text-gray-900 text-base truncate">{{ restaurant.name }}</h3>
-            <p class="text-gray-500 text-sm mt-0.5 truncate">{{ restaurant.description ?? restaurant.address }}</p>
-            <div class="flex items-center gap-1 mt-2 text-sm text-gray-400">
-              <MapPin class="w-3.5 h-3.5 shrink-0" />
-              <span class="truncate">{{ restaurant.address }}</span>
+            <h3 class="font-bold text-white text-sm truncate">{{ r.name }}</h3>
+            <p class="text-slate-500 text-xs mt-0.5 truncate">{{ r.description ?? r.address }}</p>
+            <div class="flex items-center gap-1 mt-3 text-xs text-slate-600">
+              <MapPin class="w-3 h-3 shrink-0 text-orange-500" />
+              <span class="truncate">{{ r.address }}</span>
             </div>
           </div>
         </RouterLink>
@@ -164,69 +154,56 @@
 import { ref, watch, onMounted, onUnmounted } from 'vue'
 import { MapPin, ChevronLeft, ChevronRight } from '@lucide/vue'
 import { categoryApi, restaurantApi, adsApi } from '@/api/restaurant'
+import { useReveal } from '@/composables/useReveal'
+
+useReveal()
 
 const activeCategory = ref('all')
 const categories = ref([{ id: 'all', name: 'All' }])
 const restaurants = ref([])
 const loading = ref(false)
+const serverError = ref(false)
 const ads = ref([])
-
-// Swiper state
 const activeSlide = ref(0)
 let autoPlayTimer = null
 
-function nextSlide() {
-  activeSlide.value = (activeSlide.value + 1) % ads.value.length
+function isActiveCategory(cat) {
+  return activeCategory.value === (cat.id === 'all' ? 'all' : cat.name)
 }
-function prevSlide() {
-  activeSlide.value = (activeSlide.value - 1 + ads.value.length) % ads.value.length
-}
-function goToSlide(i) {
-  activeSlide.value = i
-}
-function startAutoPlay() {
-  if (ads.value.length > 1) {
-    autoPlayTimer = setInterval(nextSlide, 3500)
-  }
-}
-function stopAutoPlay() {
-  clearInterval(autoPlayTimer)
-}
+function nextSlide() { activeSlide.value = (activeSlide.value + 1) % ads.value.length }
+function prevSlide() { activeSlide.value = (activeSlide.value - 1 + ads.value.length) % ads.value.length }
+function goToSlide(i) { activeSlide.value = i }
+function startAutoPlay() { if (ads.value.length > 1) autoPlayTimer = setInterval(nextSlide, 4000) }
+function stopAutoPlay() { clearInterval(autoPlayTimer) }
 
 async function fetchRestaurants(category) {
   loading.value = true
+  serverError.value = false
   try {
-    if (category === 'all') {
-      const res = await restaurantApi.getAll()
-      restaurants.value = res.data
-    } else {
-      const res = await categoryApi.getRestaurants(category)
-      restaurants.value = res.data
-    }
-  } catch {
+    const res = category === 'all' ? await restaurantApi.getAll() : await categoryApi.getRestaurants(category)
+    restaurants.value = res.data ?? []
+  } catch (e) {
+    if (!e.response) serverError.value = true
     restaurants.value = []
   } finally {
     loading.value = false
   }
 }
 
+async function retry() {
+  await fetchRestaurants(activeCategory.value)
+}
+
 onMounted(async () => {
   const [catRes] = await Promise.allSettled([
     categoryApi.getAll(),
-    adsApi.getAll().then((r) => {
-      ads.value = r.data
-      startAutoPlay()
-    }).catch(() => {}),
+    adsApi.getAll().then(r => { ads.value = r.data ?? []; startAutoPlay() }).catch(() => {}),
   ])
-
   if (catRes.status === 'fulfilled') {
-    categories.value = [{ id: 'all', name: 'All' }, ...catRes.value.data]
+    categories.value = [{ id: 'all', name: 'All' }, ...(catRes.value.data ?? [])]
   }
-
   await fetchRestaurants('all')
 })
-
 onUnmounted(stopAutoPlay)
-
-watch(activeCategory, (val) => fetchRestaurants(val))
+watch(activeCategory, val => fetchRestaurants(val))
 </script>

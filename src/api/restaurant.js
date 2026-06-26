@@ -1,9 +1,9 @@
 import http from './http'
 
 export const categoryApi = {
-  getAll: () => http.restaurant.get('/api/categories'),
-  getById: (id) => http.restaurant.get(`/api/category/${id}`),
-  create: (data) => http.restaurant.post('/api/categories', data),
+  getAll: () => http.restaurant.get('/api/general-category'),
+  getById: (id) => http.restaurant.get(`/api/general-category/${id}`),
+  create: (data) => http.restaurant.post('/api/general-category', data),
   getRestaurants: (categoryName) => http.restaurant.get(`/api/categories/${categoryName}/restaurants`),
 }
 

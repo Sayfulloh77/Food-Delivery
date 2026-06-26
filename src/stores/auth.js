@@ -2,6 +2,26 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { decodeToken, isTokenExpired } from '@/utils/token'
 import { authApi } from '@/api/auth'
+import axios from 'axios'
+
+async function injectDevToken() {
+  if (import.meta.env.VITE_SKIP_ADMIN_AUTH !== 'true') return
+  const existing = localStorage.getItem('accessToken')
+  if (existing && !isTokenExpired(existing)) return
+  try {
+    const res = await axios.get('http://18.212.91.176:8081/auth/token?role=ADMIN')
+    const token = res.data
+    localStorage.setItem('accessToken', token)
+    const decoded = decodeToken(token)
+    if (decoded) {
+      decoded.name = 'Dev Admin'
+      decoded.role = 'ADMIN'
+      localStorage.setItem('user', JSON.stringify(decoded))
+    }
+  } catch {}
+}
+
+injectDevToken()
 
 export const useAuthStore = defineStore('auth', () => {
   const accessToken = ref(localStorage.getItem('accessToken') || null)

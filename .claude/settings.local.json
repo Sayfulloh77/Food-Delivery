@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "WebFetch(domain:13.63.45.70)"
+      "WebFetch(domain:13.63.45.70)",
+      "Bash(curl -s https://events.samariddin.uz/docs)"
     ]
   }
 }

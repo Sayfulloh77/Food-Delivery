@@ -29,6 +29,9 @@ const router = createRouter({
 router.beforeEach((to) => {
   if (!to.meta.requiresAdmin) return true
 
+  // Dev bypass — set VITE_SKIP_ADMIN_AUTH=true in .env.local to skip login during development
+  if (import.meta.env.VITE_SKIP_ADMIN_AUTH === 'true') return true
+
   const authStore = useAuthStore()
 
   if (!authStore.isLoggedIn) {

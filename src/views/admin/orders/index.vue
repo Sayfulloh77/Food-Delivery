@@ -1,1 +1,271 @@
-<template><div>Admin orders page</div></template>
+<template>
+  <div>
+    <!-- Header row -->
+    <div class="flex items-center justify-between mb-6 flex-wrap gap-3">
+      <div class="flex items-center gap-3 flex-wrap">
+        <button
+          v-for="s in ['ALL', ...STATUSES]"
+          :key="s"
+          class="px-3 py-1.5 rounded-xl text-xs font-bold border transition-all"
+          :style="filterStatus === s
+            ? 'background:rgba(249,115,22,0.15);border-color:#f97316;color:#f97316'
+            : 'background:#060d1c;border-color:#1a2d4d;color:#64748b'"
+          @click="filterStatus = s"
+        >
+          {{ s }}
+        </button>
+      </div>
+      <button class="flex items-center gap-1.5 text-sm font-semibold text-orange-400 hover:text-orange-300 transition" @click="load">
+        <RefreshCw class="w-3.5 h-3.5" /> Refresh
+      </button>
+    </div>
+
+    <!-- Loading -->
+    <div v-if="loading" class="space-y-3 animate-pulse">
+      <div v-for="n in 5" :key="n" class="h-20 rounded-2xl" style="background:#0d1b35" />
+    </div>
+
+    <!-- Error -->
+    <div v-else-if="error" class="text-center py-20">
+      <p class="text-white font-bold">Failed to load orders — backend may be unavailable</p>
+      <button class="mt-4 px-5 py-2 rounded-xl text-black text-sm font-bold" style="background:#f97316" @click="load">Retry</button>
+    </div>
+
+    <!-- Empty -->
+    <div v-else-if="filtered.length === 0" class="text-center py-20 text-slate-600">
+      No orders found for this status.
+    </div>
+
+    <!-- Table -->
+    <div v-else class="rounded-2xl border overflow-hidden" style="border-color:#1a2d4d">
+      <table class="w-full text-sm">
+        <thead>
+          <tr style="background:#0d1b35;border-bottom:1px solid #1a2d4d">
+            <th class="px-4 py-3 text-left text-xs font-bold text-slate-500">Order ID</th>
+            <th class="px-4 py-3 text-left text-xs font-bold text-slate-500">Items</th>
+            <th class="px-4 py-3 text-left text-xs font-bold text-slate-500">Total</th>
+            <th class="px-4 py-3 text-left text-xs font-bold text-slate-500">Status</th>
+            <th class="px-4 py-3 text-left text-xs font-bold text-slate-500">Date</th>
+            <th class="px-4 py-3 text-left text-xs font-bold text-slate-500">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr
+            v-for="order in filtered"
+            :key="order.id"
+            class="border-b transition-colors"
+            style="background:#060d1c;border-color:#1a2d4d"
+            onmouseover="this.style.background='#0a1628'"
+            onmouseout="this.style.background='#060d1c'"
+          >
+            <td class="px-4 py-3 font-mono text-xs text-slate-400">#{{ order.id.slice(0,8).toUpperCase() }}</td>
+            <td class="px-4 py-3">
+              <div class="text-white text-xs">
+                <span v-for="(item, i) in order.items" :key="item.id">
+                  {{ item.name }}<span v-if="i < order.items.length - 1">, </span>
+                </span>
+              </div>
+              <p class="text-slate-600 text-xs mt-0.5">{{ order.items.length }} item{{ order.items.length > 1 ? 's' : '' }}</p>
+            </td>
+            <td class="px-4 py-3 font-bold text-orange-400 whitespace-nowrap">{{ formatPrice(order.totalPrice) }}</td>
+            <td class="px-4 py-3">
+              <span class="text-xs font-bold px-2.5 py-1 rounded-full" :style="statusStyle(order.status)">{{ order.status }}</span>
+            </td>
+            <td class="px-4 py-3 text-xs text-slate-500 whitespace-nowrap">{{ formatDate(order.createdAt) }}</td>
+            <td class="px-4 py-3">
+              <div class="flex items-center gap-2">
+                <!-- Status transitions -->
+                <select
+                  v-if="nextStatus(order.status)"
+                  class="text-xs rounded-lg px-2 py-1.5 font-semibold outline-none transition-all"
+                  style="background:#0d1b35;border:1px solid #1a2d4d;color:#f97316"
+                  :disabled="updating === order.id"
+                  @change="changeStatus(order, $event.target.value)"
+                >
+                  <option value="">Move to…</option>
+                  <option v-for="s in nextStatus(order.status)" :key="s" :value="s">{{ s }}</option>
+                </select>
+
+                <!-- Assign courier -->
+                <button
+                  v-if="order.status === 'READY' && !order.courierId"
+                  class="text-xs px-3 py-1.5 rounded-lg font-bold text-black transition hover:opacity-85"
+                  style="background:#f97316"
+                  @click="openAssign(order)"
+                >
+                  Assign courier
+                </button>
+
+                <!-- Cancel -->
+                <button
+                  v-if="['CREATED','CONFIRMED'].includes(order.status)"
+                  class="text-xs px-3 py-1.5 rounded-lg font-bold text-red-400 border border-red-900/50 hover:bg-red-950/30 transition"
+                  :disabled="updating === order.id"
+                  @click="changeStatus(order, 'CANCELLED')"
+                >
+                  Cancel
+                </button>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Assign courier modal -->
+    <div v-if="assignModal" class="fixed inset-0 bg-black/70 z-50 flex items-center justify-center backdrop-blur-sm" @click.self="assignModal = null">
+      <div class="w-full max-w-sm rounded-2xl border p-6" style="background:#0d1b35;border-color:#1a2d4d">
+        <h3 class="text-white font-bold mb-4">Assign Courier</h3>
+        <p class="text-slate-500 text-xs mb-4">Order <span class="font-mono text-orange-400">#{{ assignModal.id.slice(0,8).toUpperCase() }}</span></p>
+
+        <div v-if="couriersLoading" class="text-slate-500 text-sm text-center py-4">Loading couriers…</div>
+
+        <div v-else-if="couriers.length === 0" class="text-slate-500 text-sm text-center py-4">No couriers available.</div>
+
+        <div v-else class="space-y-2 max-h-48 overflow-y-auto mb-4">
+          <label
+            v-for="courier in couriers"
+            :key="courier.id"
+            class="flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition"
+            :style="selectedCourier === courier.id ? 'background:rgba(249,115,22,0.1);border-color:#f97316' : 'background:#060d1c;border-color:#1a2d4d'"
+          >
+            <input type="radio" v-model="selectedCourier" :value="courier.id" class="hidden" />
+            <div class="w-8 h-8 rounded-full flex items-center justify-center text-black font-bold text-xs shrink-0" style="background:#f97316">
+              {{ (courier.user?.name ?? courier.name ?? 'C').charAt(0).toUpperCase() }}
+            </div>
+            <div>
+              <p class="text-white text-sm font-semibold">{{ courier.user?.name ?? courier.name ?? courier.id }}</p>
+              <p class="text-slate-600 text-xs">{{ courier.user?.email ?? '' }}</p>
+            </div>
+          </label>
+        </div>
+
+        <div class="flex gap-2">
+          <button class="flex-1 py-2.5 rounded-xl text-sm font-semibold text-slate-400 border transition hover:bg-white/5" style="border-color:#1a2d4d" @click="assignModal = null">
+            Cancel
+          </button>
+          <button
+            class="flex-1 py-2.5 rounded-xl text-sm font-bold text-black transition hover:opacity-85 disabled:opacity-40"
+            style="background:#f97316"
+            :disabled="!selectedCourier || assigning"
+            @click="doAssign"
+          >
+            {{ assigning ? 'Assigning…' : 'Assign' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</template>
+
+<script setup>
+import { ref, computed, onMounted } from 'vue'
+import { RefreshCw } from '@lucide/vue'
+import { orderApi } from '@/api/order'
+import { couriersApi } from '@/api/users'
+
+const STATUSES = ['CREATED','CONFIRMED','PREPARING','READY','DELIVERING','DELIVERED','CANCELLED']
+
+const STATUS_TRANSITIONS = {
+  CREATED: ['CONFIRMED', 'CANCELLED'],
+  CONFIRMED: ['PREPARING', 'CANCELLED'],
+  PREPARING: ['READY'],
+  READY: ['DELIVERING'],
+  DELIVERING: ['DELIVERED'],
+  DELIVERED: [],
+  CANCELLED: [],
+}
+
+const orders = ref([])
+const loading = ref(true)
+const error = ref(false)
+const filterStatus = ref('ALL')
+const updating = ref(null)
+
+const couriers = ref([])
+const couriersLoading = ref(false)
+const assignModal = ref(null)
+const selectedCourier = ref(null)
+const assigning = ref(false)
+
+const filtered = computed(() => {
+  if (filterStatus.value === 'ALL') return orders.value
+  return orders.value.filter(o => o.status === filterStatus.value)
+})
+
+function nextStatus(status) {
+  const arr = STATUS_TRANSITIONS[status] ?? []
+  return arr.length ? arr : null
+}
+
+async function load() {
+  loading.value = true
+  error.value = false
+  try {
+    const res = await orderApi.getAll()
+    orders.value = (res.data ?? []).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+  } catch {
+    error.value = true
+  } finally {
+    loading.value = false
+  }
+}
+
+async function changeStatus(order, status) {
+  if (!status) return
+  updating.value = order.id
+  try {
+    const res = await orderApi.updateStatus(order.id, status)
+    order.status = res.data.status ?? status
+  } catch {}
+  finally { updating.value = null }
+}
+
+async function openAssign(order) {
+  assignModal.value = order
+  selectedCourier.value = null
+  couriersLoading.value = true
+  try {
+    const res = await couriersApi.getAll()
+    couriers.value = res.data ?? []
+  } catch { couriers.value = [] }
+  finally { couriersLoading.value = false }
+}
+
+async function doAssign() {
+  if (!selectedCourier.value || !assignModal.value) return
+  assigning.value = true
+  try {
+    const res = await orderApi.assignCourier(assignModal.value.id, selectedCourier.value)
+    const o = orders.value.find(o => o.id === assignModal.value.id)
+    if (o) { o.courierId = selectedCourier.value; o.status = res.data.status ?? o.status }
+    assignModal.value = null
+  } catch {}
+  finally { assigning.value = false }
+}
+
+function formatPrice(val) {
+  return Number(val || 0).toLocaleString() + ' UZS'
+}
+
+function formatDate(str) {
+  if (!str) return ''
+  return new Date(str).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+}
+
+function statusStyle(status) {
+  const map = {
+    CREATED: 'background:rgba(59,130,246,0.15);color:#60a5fa',
+    CONFIRMED: 'background:rgba(249,115,22,0.15);color:#fb923c',
+    PREPARING: 'background:rgba(234,179,8,0.15);color:#facc15',
+    READY: 'background:rgba(168,85,247,0.15);color:#c084fc',
+    DELIVERING: 'background:rgba(249,115,22,0.25);color:#f97316',
+    DELIVERED: 'background:rgba(16,185,129,0.15);color:#34d399',
+    CANCELLED: 'background:rgba(239,68,68,0.1);color:#f87171',
+  }
+  return map[status] ?? 'background:#1a2d4d;color:#94a3b8'
+}
+
+onMounted(load)
+</script>

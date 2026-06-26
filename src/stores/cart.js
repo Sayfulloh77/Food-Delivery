@@ -14,16 +14,6 @@ export const useCartStore = defineStore('cart', () => {
     localStorage.setItem('cart', JSON.stringify(items.value))
   }
 
-  function addItem(item) {
-    const existing = items.value.find((i) => i.id === item.id)
-    if (existing) {
-      existing.qty++
-    } else {
-      items.value.push({ ...item, qty: 1 })
-    }
-    save()
-  }
-
   function removeItem(id) {
     const idx = items.value.findIndex((i) => i.id === id)
     if (idx === -1) return
@@ -45,5 +35,16 @@ export const useCartStore = defineStore('cart', () => {
     save()
   }
 
-  return { items, totalItems, totalPrice, addItem, removeItem, deleteItem, clear }
+  const drawerOpen = ref(false)
+  function openDrawer() { drawerOpen.value = true }
+  function closeDrawer() { drawerOpen.value = false }
+
+  function addItem(item) {
+    const existing = items.value.find((i) => i.id === item.id)
+    if (existing) { existing.qty++ } else { items.value.push({ ...item, qty: 1 }) }
+    save()
+    drawerOpen.value = true
+  }
+
+  return { items, totalItems, totalPrice, drawerOpen, openDrawer, closeDrawer, addItem, removeItem, deleteItem, clear }
 })

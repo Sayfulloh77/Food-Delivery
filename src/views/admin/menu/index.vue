@@ -1,1 +1,292 @@
-<template><div>Admin menu page</div></template>
+<template>
+  <div class="space-y-5">
+
+    <!-- Tabs -->
+    <div class="flex gap-1 p-1 rounded-xl w-fit" style="background:#060d1c">
+      <button
+        v-for="tab in tabs"
+        :key="tab.key"
+        @click="activeTab = tab.key"
+        class="px-4 py-2 rounded-lg text-sm font-medium transition-all"
+        :style="activeTab === tab.key ? 'background:#f97316;color:#000' : 'color:#64748b'"
+      >
+        {{ tab.label }}
+        <span class="ml-1.5 text-xs px-1.5 py-0.5 rounded-full" :class="activeTab === tab.key ? 'bg-black/20 text-black' : 'bg-white/5 text-slate-600'">
+          {{ counts[tab.key] }}
+        </span>
+      </button>
+    </div>
+
+    <!-- Add button -->
+    <div class="flex justify-end">
+      <button @click="openCreate" class="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-black transition-all hover:opacity-85" style="background:#f97316">
+        <Plus class="w-4 h-4" /> Add {{ tabLabel }}
+      </button>
+    </div>
+
+    <!-- Loading -->
+    <div v-if="loading" class="flex items-center justify-center py-16">
+      <div class="w-8 h-8 border-2 border-t-transparent rounded-full animate-spin" style="border-color:#f97316;border-top-color:transparent" />
+    </div>
+
+    <!-- RESTAURANTS -->
+    <div v-else-if="activeTab === 'restaurants'" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div v-if="rows.length === 0" class="col-span-3 flex flex-col items-center justify-center py-16 text-zinc-700">
+        <UtensilsCrossed class="w-10 h-10 mb-2 opacity-40" /><p class="text-sm">No restaurants yet</p>
+      </div>
+      <div
+        v-for="r in rows" :key="r.id"
+        class="rounded-2xl overflow-hidden border transition-all hover:border-zinc-700"
+        style="background:#0d1b35;border-color:#1a2d4d"
+      >
+        <div class="h-36 relative" style="background:#1a2d4d">
+          <img v-if="r.restaurant_img" :src="r.restaurant_img" class="w-full h-full object-cover opacity-80" />
+          <div v-else class="w-full h-full flex items-center justify-center"><UtensilsCrossed class="w-10 h-10 text-zinc-700" /></div>
+          <span class="absolute top-2 right-2 text-xs font-bold px-2 py-0.5 rounded-full" :class="r.is_open ? 'bg-green-600/90 text-white' : 'bg-zinc-700 text-zinc-300'">
+            {{ r.is_open ? 'Open' : 'Closed' }}
+          </span>
+        </div>
+        <div class="p-4">
+          <p class="font-bold text-white truncate">{{ r.name }}</p>
+          <p class="text-xs text-zinc-500 mt-0.5 truncate">{{ r.address }}</p>
+          <div class="flex justify-end mt-3">
+            <button @click="deleteRow(r.id)" class="text-xs px-2.5 py-1 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors">Delete</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MENU ITEMS -->
+    <div v-else-if="activeTab === 'items'" class="rounded-2xl border overflow-hidden" style="background:#060d1c;border-color:#1a2d4d">
+      <div v-if="rows.length === 0" class="flex flex-col items-center justify-center py-16 text-zinc-700">
+        <ShoppingBag class="w-10 h-10 mb-2 opacity-40" /><p class="text-sm">No menu items yet</p>
+      </div>
+      <table v-else class="w-full text-sm">
+        <thead class="border-b" style="background:#0d1b35;border-color:#1a2d4d">
+          <tr>
+            <th class="text-left px-5 py-3 font-medium text-zinc-500">Item</th>
+            <th class="text-left px-5 py-3 font-medium text-zinc-500">Price</th>
+            <th class="text-left px-5 py-3 font-medium text-zinc-500">Discount</th>
+            <th class="text-left px-5 py-3 font-medium text-zinc-500">Delivery</th>
+            <th class="text-right px-5 py-3 font-medium text-zinc-500">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="item in rows" :key="item.id" class="border-b hover:bg-white/2 transition-colors" style="border-color:#1a2d4d">
+            <td class="px-5 py-3.5">
+              <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl overflow-hidden shrink-0" style="background:#1a2d4d">
+                  <img v-if="item.img_product" :src="item.img_product" class="w-full h-full object-cover" />
+                  <div v-else class="w-full h-full flex items-center justify-center"><ShoppingBag class="w-4 h-4 text-zinc-700" /></div>
+                </div>
+                <div>
+                  <p class="font-semibold text-white">{{ item.name }}</p>
+                  <p class="text-xs text-zinc-600 truncate max-w-40">{{ item.description || '—' }}</p>
+                </div>
+              </div>
+            </td>
+            <td class="px-5 py-3.5 font-semibold text-white">{{ Number(item.price).toLocaleString() }} UZS</td>
+            <td class="px-5 py-3.5">
+              <span v-if="item.discount_status" class="px-2 py-0.5 rounded-full text-xs bg-green-500/15 text-green-400">{{ item.discount }}%</span>
+              <span v-else class="text-zinc-600">—</span>
+            </td>
+            <td class="px-5 py-3.5 text-zinc-500">{{ item.delivery_time || '—' }}</td>
+            <td class="px-5 py-3.5 text-right">
+              <button @click="deleteRow(item.id)" class="text-xs px-2.5 py-1 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors">Delete</button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- CATEGORIES -->
+    <div v-else-if="activeTab === 'categories'" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+      <div v-if="rows.length === 0" class="col-span-4 flex flex-col items-center justify-center py-16 text-zinc-700">
+        <Tag class="w-10 h-10 mb-2 opacity-40" /><p class="text-sm">No categories yet</p>
+      </div>
+      <div v-for="c in rows" :key="c.id" class="rounded-2xl p-4 border flex items-center justify-between" style="background:#0d1b35;border-color:#1a2d4d">
+        <span class="font-medium text-white truncate">{{ c.name }}</span>
+        <button @click="deleteRow(c.id)" class="ml-2 shrink-0 text-red-500/60 hover:text-red-400 transition-colors">
+          <Trash2 class="w-4 h-4" />
+        </button>
+      </div>
+    </div>
+
+    <!-- ADS -->
+    <div v-else-if="activeTab === 'ads'" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div v-if="rows.length === 0" class="col-span-3 flex flex-col items-center justify-center py-16 text-zinc-700">
+        <Megaphone class="w-10 h-10 mb-2 opacity-40" /><p class="text-sm">No ads yet</p>
+      </div>
+      <div v-for="ad in rows" :key="ad.id" class="rounded-2xl overflow-hidden border" style="background:#0d1b35;border-color:#1a2d4d">
+        <div class="h-40" style="background:#1a2d4d">
+          <img v-if="ad.image_ads" :src="ad.image_ads" class="w-full h-full object-cover opacity-80" />
+        </div>
+        <div class="p-4 flex items-center justify-between gap-2">
+          <p class="text-sm font-semibold text-white truncate">{{ ad.promotion }}</p>
+          <button @click="deleteRow(ad.id)" class="shrink-0 text-red-500/60 hover:text-red-400 transition-colors">
+            <Trash2 class="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- CREATE MODAL -->
+    <div v-if="showCreate" class="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4 overflow-y-auto">
+      <div class="rounded-2xl shadow-2xl w-full max-w-lg p-6 my-auto border" style="background:#0d1b35;border-color:#1a2d4d">
+        <h3 class="text-lg font-bold text-white mb-5">Add {{ tabLabel }}</h3>
+
+        <!-- Restaurant form -->
+        <div v-if="activeTab === 'restaurants'" class="space-y-4">
+          <MField label="Name *"><input v-model="form.name" type="text" class="m-input" placeholder="Restaurant name" /></MField>
+          <MField label="Description"><textarea v-model="form.description" class="m-input resize-none h-20" placeholder="Short description" /></MField>
+          <MField label="Address URL *"><input v-model="form.address" type="url" class="m-input" placeholder="https://maps.google.com/..." /></MField>
+          <MField label="Image"><input type="file" accept="image/*" @change="onFile($event, 'restaurant_img')" class="text-sm text-zinc-400" /></MField>
+          <MField label="Category IDs (comma separated)"><input v-model="form.categoriesRaw" type="text" class="m-input" placeholder="1, 2, 3" /></MField>
+          <label class="flex items-center gap-2 text-sm text-zinc-400 cursor-pointer">
+            <input type="checkbox" v-model="form.is_open" class="accent-orange-500" /> Open now
+          </label>
+        </div>
+
+        <!-- Menu item form -->
+        <div v-else-if="activeTab === 'items'" class="space-y-4">
+          <MField label="Restaurant UUID *"><input v-model="form.restaurant" type="text" class="m-input" placeholder="uuid..." /></MField>
+          <MField label="Menu Category ID *"><input v-model="form.category" type="number" class="m-input" placeholder="1" /></MField>
+          <MField label="Name *"><input v-model="form.name" type="text" class="m-input" placeholder="Item name" /></MField>
+          <MField label="Description"><textarea v-model="form.description" class="m-input resize-none h-16" /></MField>
+          <div class="grid grid-cols-2 gap-4">
+            <MField label="Price *"><input v-model="form.price" type="number" class="m-input" placeholder="0.00" /></MField>
+            <MField label="Discount %"><input v-model="form.discount" type="number" class="m-input" placeholder="0" /></MField>
+          </div>
+          <MField label="Delivery time"><input v-model="form.delivery_time" type="text" class="m-input" placeholder="30 min" /></MField>
+          <MField label="Image"><input type="file" accept="image/*" @change="onFile($event, 'img_product')" class="text-sm text-zinc-400" /></MField>
+          <label class="flex items-center gap-2 text-sm text-zinc-400 cursor-pointer">
+            <input type="checkbox" v-model="form.discount_status" class="accent-orange-500" /> Has discount
+          </label>
+        </div>
+
+        <!-- Category form -->
+        <div v-else-if="activeTab === 'categories'" class="space-y-4">
+          <MField label="Category name *"><input v-model="form.name" type="text" class="m-input" placeholder="e.g. Fast Food" /></MField>
+        </div>
+
+        <!-- Ads form -->
+        <div v-else-if="activeTab === 'ads'" class="space-y-4">
+          <MField label="Restaurant UUID *"><input v-model="form.restaurant" type="text" class="m-input" placeholder="uuid..." /></MField>
+          <MField label="Promotion text *"><input v-model="form.promotion" type="text" class="m-input" placeholder="50% off today!" /></MField>
+          <MField label="Ad image *"><input type="file" accept="image/*" @change="onFile($event, 'image_ads')" class="text-sm text-zinc-400" /></MField>
+        </div>
+
+        <p v-if="createError" class="mt-3 text-sm text-red-400">{{ createError }}</p>
+        <div class="flex gap-3 mt-6">
+          <button @click="showCreate = false; createError = ''" class="flex-1 px-4 py-2.5 rounded-xl text-sm font-medium text-zinc-400 border border-zinc-800 hover:bg-white/5 transition-colors">Cancel</button>
+          <button @click="submitCreate" :disabled="creating" class="flex-1 px-4 py-2.5 rounded-xl text-sm font-bold text-black transition-all hover:opacity-85 disabled:opacity-40" style="background:#f97316">
+            {{ creating ? 'Saving...' : 'Save' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</template>
+
+<script setup>
+import { ref, computed, watch, onMounted } from 'vue'
+import { Plus, UtensilsCrossed, ShoppingBag, Tag, Trash2, Megaphone } from '@lucide/vue'
+import { restaurantApi, menuitemApi, categoryApi, adsApi } from '@/api/restaurant'
+
+const MField = {
+  props: ['label'],
+  template: `<div><label class="block text-xs font-medium text-zinc-500 mb-1.5">{{ label }}</label><slot /></div>`,
+}
+
+const tabs = [
+  { key: 'restaurants', label: 'Restaurants' },
+  { key: 'items', label: 'Menu Items' },
+  { key: 'categories', label: 'Categories' },
+  { key: 'ads', label: 'Ads' },
+]
+
+const activeTab = ref('restaurants')
+const loading = ref(false)
+const data = ref({ restaurants: [], items: [], categories: [], ads: [] })
+const showCreate = ref(false)
+const creating = ref(false)
+const createError = ref('')
+const form = ref({})
+
+const rows = computed(() => data.value[activeTab.value] ?? [])
+const counts = computed(() => Object.fromEntries(tabs.map(t => [t.key, data.value[t.key]?.length ?? 0])))
+const tabLabel = computed(() => tabs.find(t => t.key === activeTab.value)?.label ?? '')
+
+const fetchMap = {
+  restaurants: () => restaurantApi.getAll(),
+  items: () => menuitemApi.getAll(),
+  categories: () => categoryApi.getAll(),
+  ads: () => adsApi.getAll(),
+}
+
+async function loadTab(tab) {
+  if (data.value[tab].length > 0) return
+  loading.value = true
+  try { const res = await fetchMap[tab](); data.value[tab] = res.data ?? [] }
+  catch { data.value[tab] = [] }
+  finally { loading.value = false }
+}
+
+function openCreate() { form.value = { is_open: true, discount_status: false }; createError.value = ''; showCreate.value = true }
+function onFile(e, field) { form.value[field] = e.target.files[0] ?? null }
+
+function buildFormData() {
+  const fd = new FormData()
+  for (const [k, v] of Object.entries(form.value)) {
+    if (k === 'categoriesRaw' || v === null || v === undefined) continue
+    fd.append(k, v)
+  }
+  if (activeTab.value === 'restaurants' && form.value.categoriesRaw) {
+    form.value.categoriesRaw.split(',').map(s => s.trim()).filter(Boolean).forEach(id => fd.append('categories', id))
+  }
+  return fd
+}
+
+async function submitCreate() {
+  creating.value = true; createError.value = ''
+  try {
+    const fd = buildFormData()
+    let res
+    if (activeTab.value === 'restaurants') res = await restaurantApi.create(fd)
+    else if (activeTab.value === 'items') res = await menuitemApi.create(fd)
+    else if (activeTab.value === 'categories') res = await categoryApi.create(fd)
+    else if (activeTab.value === 'ads') res = await adsApi.create(fd)
+    if (res?.data) data.value[activeTab.value].unshift(res.data)
+    showCreate.value = false
+  } catch (e) { createError.value = e.response?.data?.detail ?? e.response?.data?.message ?? 'Failed to save' }
+  finally { creating.value = false }
+}
+
+async function deleteRow(id) {
+  if (!confirm('Delete this item?')) return
+  try {
+    if (activeTab.value === 'ads') await adsApi.delete(id)
+    data.value[activeTab.value] = data.value[activeTab.value].filter(r => r.id !== id)
+  } catch {}
+}
+
+watch(activeTab, tab => loadTab(tab))
+onMounted(() => loadTab('restaurants'))
+</script>
+
+<style scoped>
+.m-input {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  background: #1a1a1a;
+  border: 1px solid #2a2a2a;
+  border-radius: 0.75rem;
+  color: white;
+  font-size: 0.875rem;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.m-input { background: #060d1c; border-color: #1a2d4d; }
+.m-input:focus { border-color: #f97316; }
+</style>

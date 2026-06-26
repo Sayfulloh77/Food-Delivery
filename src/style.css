@@ -1,23 +1,82 @@
 @import "tailwindcss";
 
 @theme {
-  --color-primary: #ff5722;
-  --color-primary-dark: #e64a19;
-  --color-primary-light: #fff3f0;
+  --color-primary: #f97316;
+  --color-primary-dark: #ea6c0a;
+  --color-accent: #3b82f6;
+  --color-surface: #0d1b35;
+  --color-border: #1a2d4d;
   --font-sans: 'Segoe UI', system-ui, -apple-system, sans-serif;
 }
 
-*, *::before, *::after {
-  box-sizing: border-box;
-}
+*, *::before, *::after { box-sizing: border-box; }
 
 body {
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
+  background: #060d1c;
+  color: #fff;
 }
 
 #app {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
+}
+
+button, a, [role="button"] { cursor: pointer; }
+
+/* Fix browser autofill overriding dark input bg */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 1000px #0d1b35 inset !important;
+  -webkit-text-fill-color: #ffffff !important;
+  caret-color: #ffffff;
+  transition: background-color 9999s ease-in-out 0s;
+}
+
+/* Scroll reveal */
+.reveal {
+  opacity: 0;
+  transform: translateY(28px);
+  transition: opacity 0.55s ease, transform 0.55s ease;
+}
+.reveal.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+.reveal-delay-1 { transition-delay: 0.08s; }
+.reveal-delay-2 { transition-delay: 0.16s; }
+.reveal-delay-3 { transition-delay: 0.24s; }
+.reveal-delay-4 { transition-delay: 0.32s; }
+
+/* Page transitions */
+.page-enter-active, .page-leave-active {
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+.page-enter-from { opacity: 0; transform: translateY(8px); }
+.page-leave-to { opacity: 0; transform: translateY(-8px); }
+
+/* Custom scrollbar */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: #060d1c; }
+::-webkit-scrollbar-thumb { background: #1a2d4d; border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: #2a3f60; }
+
+/* Glow utilities */
+.glow-orange { box-shadow: 0 0 24px rgba(249,115,22,0.25); }
+.glow-blue { box-shadow: 0 0 24px rgba(59,130,246,0.2); }
+
+/* Status badges */
+.badge-open {
+  background: rgba(16,185,129,0.15);
+  color: #10b981;
+  border: 1px solid rgba(16,185,129,0.3);
+}
+.badge-closed {
+  background: rgba(100,116,139,0.15);
+  color: #64748b;
+  border: 1px solid rgba(100,116,139,0.2);
 }
