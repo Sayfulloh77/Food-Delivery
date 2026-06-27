@@ -6,15 +6,7 @@
 
       <!-- Logo -->
       <div class="h-16 flex items-center gap-2 px-4 border-b shrink-0" style="border-color:#1a2d4d">
-        <svg width="28" height="28" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <rect width="36" height="36" rx="10" fill="#f97316"/>
-          <path d="M9 20 C9 26 27 26 27 20" stroke="white" stroke-width="2.2" stroke-linecap="round"/>
-          <path d="M14 16 Q15 14 14 12" stroke="white" stroke-width="1.8" stroke-linecap="round"/>
-          <path d="M18 15 Q19 13 18 11" stroke="white" stroke-width="1.8" stroke-linecap="round"/>
-          <path d="M22 16 Q23 14 22 12" stroke="white" stroke-width="1.8" stroke-linecap="round"/>
-          <line x1="7" y1="23" x2="29" y2="23" stroke="white" stroke-width="2" stroke-linecap="round"/>
-        </svg>
-        <span class="font-bold text-white text-sm">Food<span style="color:#f97316">Express</span></span>
+        <BrandLogo :size="28" :font-size="13" />
         <span class="ml-auto text-[9px] font-bold px-1.5 py-0.5 rounded" style="background:rgba(249,115,22,0.15);color:#f97316">ADMIN</span>
       </div>
 
@@ -73,6 +65,7 @@ import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Users, UtensilsCrossed, ClipboardList, LogOut } from '@lucide/vue'
 import { useAuthStore } from '@/stores/auth'
+import BrandLogo from '@/components/shared/BrandLogo.vue'
 
 const route = useRoute()
 const router = useRouter()
