@@ -7,13 +7,15 @@ const router = createRouter({
     // Auth
     { path: '/auth', component: () => import('@/views/auth/AuthView.vue') },
 
-    // Customer
+    // Customer — public
     { path: '/', redirect: '/restaurants' },
     { path: '/restaurants', component: () => import('@/views/customer/restaurants/index.vue') },
     { path: '/restaurants/:id', component: () => import('@/views/customer/restaurants/DetailView.vue') },
-    { path: '/cart', component: () => import('@/views/customer/cart/index.vue') },
-    { path: '/orders', component: () => import('@/views/customer/orders/index.vue') },
-    { path: '/notifications', component: () => import('@/views/customer/notifications/index.vue') },
+
+    // Customer — requires login
+    { path: '/cart', meta: { requiresAuth: true }, component: () => import('@/views/customer/cart/index.vue') },
+    { path: '/orders', meta: { requiresAuth: true }, component: () => import('@/views/customer/orders/index.vue') },
+    { path: '/notifications', meta: { requiresAuth: true }, component: () => import('@/views/customer/notifications/index.vue') },
 
     // Admin — requires ADMIN or SUPERADMIN role
     { path: '/admin/users', meta: { requiresAdmin: true }, component: () => import('@/views/admin/users/index.vue') },
@@ -27,23 +29,27 @@ const router = createRouter({
 
 // Runs before every page navigation
 router.beforeEach((to) => {
-  if (!to.meta.requiresAdmin) return true
-
-  // Dev bypass — set VITE_SKIP_ADMIN_AUTH=true in .env.local to skip login during development
-  if (import.meta.env.VITE_SKIP_ADMIN_AUTH === 'true') return true
-
   const authStore = useAuthStore()
 
-  if (!authStore.isLoggedIn) {
-    return '/auth'
+  // Pages that require any logged-in user (cart, orders, notifications)
+  if (to.meta.requiresAuth) {
+    if (!authStore.isLoggedIn) {
+      return { path: '/auth', query: { redirect: to.fullPath } }
+    }
+    return true
   }
 
-  // JWT payload might have role as string or inside roles array
-  const role = authStore.user?.role ?? authStore.user?.roles?.[0]
-  const isAdmin = role === 'ADMIN' || role === 'SUPERADMIN'
+  // Admin pages
+  if (to.meta.requiresAdmin) {
+    if (!authStore.isLoggedIn) {
+      return { path: '/auth', query: { redirect: to.fullPath } }
+    }
 
-  if (!isAdmin) {
-    return '/forbidden'
+    // JWT payload might have role as string or inside roles array
+    const role = authStore.user?.role ?? authStore.user?.roles?.[0]
+    const isAdmin = role === 'ADMIN' || role === 'SUPERADMIN'
+
+    if (!isAdmin) return '/forbidden'
   }
 
   return true

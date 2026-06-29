@@ -107,7 +107,7 @@ const userInitial = computed(() => userName.value.charAt(0).toUpperCase())
 function handleLogout() {
   authStore.logout()
   dropdownOpen.value = false
-  router.push('/auth')
+  router.push('/restaurants')
 }
 
 function handleClickOutside(e) {

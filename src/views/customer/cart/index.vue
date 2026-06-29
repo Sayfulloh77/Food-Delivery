@@ -90,12 +90,14 @@
             <span>{{ formatPrice(cartStore.totalPrice) }}</span>
           </div>
 
+          <p v-if="orderError" class="mt-3 text-sm text-red-400 text-center">{{ orderError }}</p>
           <button
-            class="mt-5 w-full py-3.5 rounded-xl text-white font-semibold text-sm transition hover:opacity-90 active:scale-95"
-            style="background:#ff5722"
+            class="mt-4 w-full py-3.5 rounded-xl font-semibold text-sm transition active:scale-95 disabled:opacity-50"
+            style="background:#f97316;color:#000"
+            :disabled="placing"
             @click="placeOrder"
           >
-            Place Order
+            {{ placing ? 'Placing order…' : 'Place Order' }}
           </button>
 
           <button
@@ -112,18 +114,60 @@
 </template>
 
 <script setup>
-import { RouterLink } from 'vue-router'
+import { ref } from 'vue'
+import { RouterLink, useRouter } from 'vue-router'
 import { Minus, Plus, X } from '@lucide/vue'
 import { useCartStore } from '@/stores/cart'
+import { cartApi, orderApi } from '@/api/order'
 
 const cartStore = useCartStore()
+const router = useRouter()
+const placing = ref(false)
+const orderError = ref('')
 
 function formatPrice(amount) {
   return new Intl.NumberFormat('uz-UZ').format(amount) + ' UZS'
 }
 
-function placeOrder() {
-  // Will be wired to Order Service API when backend deploys it
-  alert('Order service is not yet available. Coming soon!')
+// Integer menu item IDs from restaurant service padded into UUID format for order service
+function toMenuItemUUID(id) {
+  return `00000000-0000-0000-0000-${String(id).padStart(12, '0')}`
+}
+
+async function placeOrder() {
+  if (cartStore.items.length === 0) return
+  placing.value = true
+  orderError.value = ''
+
+  const restaurantId = cartStore.items[0]?.restaurantId
+  if (!restaurantId) { orderError.value = 'Cart error — missing restaurant.'; placing.value = false; return }
+
+  try {
+    // Clear any existing items in the order service cart
+    const existing = await cartApi.get()
+    const existingItems = existing.data?.items ?? []
+    await Promise.all(existingItems.map(i => cartApi.removeItem(i.id)))
+
+    // Push each local cart item to the order service cart
+    await Promise.all(cartStore.items.map(item =>
+      cartApi.addItem({
+        restaurantId,
+        menuItemId: toMenuItemUUID(item.id),
+        qty: item.qty,
+        price: item.new_price ?? item.price,
+        name: item.name,
+      })
+    ))
+
+    // Place the order
+    await orderApi.create({ restaurantId })
+
+    cartStore.clear()
+    router.push('/orders')
+  } catch {
+    orderError.value = 'Failed to place order. Please try again.'
+  } finally {
+    placing.value = false
+  }
 }
 </script>

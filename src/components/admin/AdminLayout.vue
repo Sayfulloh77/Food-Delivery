@@ -91,6 +91,6 @@ const adminInitial = computed(() => adminName.value.charAt(0).toUpperCase())
 
 async function handleLogout() {
   await authStore.logout()
-  router.push('/auth')
+  router.push('/restaurants')
 }
 </script>

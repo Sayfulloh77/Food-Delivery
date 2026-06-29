@@ -133,14 +133,12 @@ function addToCart(item) {
 
 onMounted(async () => {
   try {
-    const [restaurantRes, menuRes] = await Promise.all([
+    const [restaurantRes, menuRes] = await Promise.allSettled([
       restaurantApi.getById(route.params.id),
       restaurantApi.getMenu(route.params.id),
     ])
-    restaurant.value = restaurantRes.data
-    menuItems.value = menuRes.data ?? []
-  } catch {
-    restaurant.value = null
+    restaurant.value = restaurantRes.status === 'fulfilled' ? restaurantRes.value.data : null
+    menuItems.value = menuRes.status === 'fulfilled' ? (menuRes.value.data ?? []) : []
   } finally {
     loading.value = false
   }

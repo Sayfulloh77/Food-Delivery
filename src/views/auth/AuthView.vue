@@ -187,19 +187,24 @@
 
 <script setup>
 import { ref, computed, onUnmounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { Eye, EyeOff, ShieldCheck, ArrowLeft, CheckCircle } from '@lucide/vue'
 import { authApi } from '@/api/auth'
 import { useAuthStore } from '@/stores/auth'
 import BrandLogo from '@/components/shared/BrandLogo.vue'
 
 const router = useRouter()
+const route = useRoute()
 const authStore = useAuthStore()
 
 function redirectByRole() {
   const role = authStore.user?.role ?? authStore.user?.roles?.[0]
-  if (role === 'ADMIN' || role === 'SUPERADMIN') router.push('/admin/users')
-  else router.push('/')
+  if (role === 'ADMIN' || role === 'SUPERADMIN') {
+    router.push('/admin/users')
+  } else {
+    const redirect = route.query.redirect
+    router.push(typeof redirect === 'string' ? redirect : '/')
+  }
 }
 
 const mode = ref('signin')
@@ -250,7 +255,7 @@ async function handleRegister() {
   try {
     const res = await authApi.register({ name: signUp.value.name, email: signUp.value.email, password: signUp.value.password, role_id: 1, otpToken: otpToken.value })
     authStore.setTokens(res.data.access_token, res.data.refresh_token)
-    await authStore.fetchMe()
+    await Promise.all([authStore.fetchMe(), authStore.fetchOrderToken('CUSTOMER')])
     redirectByRole()
   } catch (e) { error.value = e?.response?.data?.message ?? 'Registration failed.' }
   finally { loading.value = false }
@@ -262,6 +267,9 @@ async function handleSignIn() {
     const res = await authApi.login(signIn.value.email, signIn.value.password)
     authStore.setTokens(res.data.access_token, res.data.refresh_token)
     await authStore.fetchMe()
+    const role = authStore.user?.role ?? authStore.user?.roles?.[0]
+    const orderRole = (role === 'ADMIN' || role === 'SUPERADMIN') ? 'ADMIN' : 'CUSTOMER'
+    await authStore.fetchOrderToken(orderRole)
     redirectByRole()
   } catch (e) { error.value = e?.response?.data?.message ?? 'Invalid email or password.' }
   finally { loading.value = false }

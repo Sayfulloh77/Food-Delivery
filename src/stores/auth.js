@@ -4,31 +4,26 @@ import { decodeToken, isTokenExpired } from '@/utils/token'
 import { authApi } from '@/api/auth'
 import axios from 'axios'
 
-async function injectDevToken() {
-  if (import.meta.env.VITE_SKIP_ADMIN_AUTH !== 'true') return
-  const existing = localStorage.getItem('accessToken')
-  if (existing && !isTokenExpired(existing)) return
-  try {
-    const res = await axios.get('http://18.212.91.176:8081/auth/token?role=ADMIN')
-    const token = res.data
-    localStorage.setItem('accessToken', token)
-    const decoded = decodeToken(token)
-    if (decoded) {
-      decoded.name = 'Dev Admin'
-      decoded.role = 'ADMIN'
-      localStorage.setItem('user', JSON.stringify(decoded))
-    }
-  } catch {}
-}
-
-injectDevToken()
-
 export const useAuthStore = defineStore('auth', () => {
   const accessToken = ref(localStorage.getItem('accessToken') || null)
   const refreshToken = ref(localStorage.getItem('refreshToken') || null)
+  const orderToken = ref(localStorage.getItem('orderToken') || null)
   const user = ref(accessToken.value ? decodeToken(accessToken.value) : null)
 
   const isLoggedIn = computed(() => !!accessToken.value && !isTokenExpired(accessToken.value))
+
+  // The order service uses its own JWT secret (separate from the auth service).
+  // After login we fetch a token from the order service using the user's role.
+  async function fetchOrderToken(role = 'CUSTOMER') {
+    try {
+      const res = await axios.get(`${import.meta.env.VITE_ORDER_URL}/auth/token?role=${role}`)
+      const token = typeof res.data === 'string' ? res.data : null
+      if (token) {
+        orderToken.value = token
+        localStorage.setItem('orderToken', token)
+      }
+    } catch {}
+  }
 
   function setTokens(access, refresh) {
     accessToken.value = access
@@ -56,9 +51,11 @@ export const useAuthStore = defineStore('auth', () => {
     }
     accessToken.value = null
     refreshToken.value = null
+    orderToken.value = null
     user.value = null
     localStorage.removeItem('accessToken')
     localStorage.removeItem('refreshToken')
+    localStorage.removeItem('orderToken')
     localStorage.removeItem('user')
   }
 
@@ -74,5 +71,5 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  return { accessToken, refreshToken, user, isLoggedIn, setTokens, fetchMe, logout, refreshTokens }
+  return { accessToken, refreshToken, orderToken, user, isLoggedIn, setTokens, fetchMe, fetchOrderToken, logout, refreshTokens }
 })

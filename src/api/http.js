@@ -11,7 +11,11 @@ function processQueue(error, token = null) {
 function clearAndRedirect() {
   localStorage.removeItem('accessToken')
   localStorage.removeItem('refreshToken')
-  window.location.href = '/auth'
+  localStorage.removeItem('user')
+  // Only force-redirect to auth from admin pages — public pages handle 401 silently
+  if (window.location.pathname.startsWith('/admin')) {
+    window.location.href = '/auth'
+  }
 }
 
 const instances = {
@@ -21,9 +25,19 @@ const instances = {
   notification: axios.create({ baseURL: import.meta.env.VITE_NOTIFICATION_URL }),
 }
 
-Object.values(instances).forEach((instance) => {
+// Each service uses a different JWT secret, so we use the right token per service:
+// - auth / notification: use the main auth service accessToken
+// - order: uses its own token (orderToken) fetched separately after login
+// - restaurant: no auth header (optional auth, rejects foreign tokens with 401)
+function getTokenForService(name) {
+  if (name === 'order') return localStorage.getItem('orderToken')
+  if (name === 'auth' || name === 'notification') return localStorage.getItem('accessToken')
+  return null // restaurant — no token
+}
+
+Object.entries(instances).forEach(([name, instance]) => {
   instance.interceptors.request.use((config) => {
-    const token = localStorage.getItem('accessToken')
+    const token = getTokenForService(name)
     if (token) config.headers.Authorization = `Bearer ${token}`
     return config
   })
