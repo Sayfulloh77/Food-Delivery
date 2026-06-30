@@ -27,5 +27,5 @@ export const adsApi = {
 }
 
 export const searchApi = {
-  search: (q) => http.restaurant.get('/api/search', { params: { q } }),
+  search: (query) => http.restaurant.get('/api/search', { params: { query } }),
 }
