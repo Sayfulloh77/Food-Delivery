@@ -11,12 +11,12 @@
         <input
           v-model="search"
           type="text"
-          placeholder="Search restaurants..."
+          placeholder="Search for a dish or restaurant, press Enter…"
           class="w-full pl-9 pr-4 py-2 rounded-xl text-sm text-white placeholder-slate-600 outline-none transition-all"
           style="background:#0d1b35;border:1px solid #1a2d4d"
           onfocus="this.style.borderColor='#f97316'"
           onblur="this.style.borderColor='#1a2d4d'"
-          @input="$emit('search', search)"
+          @keyup.enter="submitSearch"
         />
       </div>
 
@@ -85,24 +85,32 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { Search, ShoppingCart, ChevronDown, LogOut, ClipboardList, Bell } from '@lucide/vue'
 import BrandLogo from '@/components/shared/BrandLogo.vue'
 import { useAuthStore } from '@/stores/auth'
 import { useCartStore } from '@/stores/cart'
 
 const router = useRouter()
+const route = useRoute()
 const authStore = useAuthStore()
 const cartStore = useCartStore()
-const search = ref('')
+const search = ref(typeof route.query.q === 'string' ? route.query.q : '')
 const dropdownOpen = ref(false)
 const dropdownRef = ref(null)
 
-defineEmits(['search'])
-
 const userName = computed(() => authStore.user?.name ?? authStore.user?.role ?? 'Account')
 const userInitial = computed(() => userName.value.charAt(0).toUpperCase())
+
+// Keep the box in sync if the user navigates back to an empty/different search.
+watch(() => route.query.q, (q) => { search.value = typeof q === 'string' ? q : '' })
+
+function submitSearch() {
+  const q = search.value.trim()
+  if (!q) return
+  router.push({ path: '/restaurants', query: { q } })
+}
 
 function handleLogout() {
   authStore.logout()

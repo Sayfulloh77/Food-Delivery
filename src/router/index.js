@@ -28,8 +28,14 @@ const router = createRouter({
 })
 
 // Runs before every page navigation
-router.beforeEach((to) => {
+router.beforeEach(async (to) => {
   const authStore = useAuthStore()
+
+  // Access token may have expired since the last navigation — try a
+  // silent refresh before treating the user as logged out.
+  if (!authStore.isLoggedIn && authStore.accessToken && authStore.refreshToken && (to.meta.requiresAuth || to.meta.requiresAdmin)) {
+    await authStore.refreshTokens()
+  }
 
   // Pages that require any logged-in user (cart, orders, notifications)
   if (to.meta.requiresAuth) {

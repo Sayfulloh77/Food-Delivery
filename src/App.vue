@@ -8,15 +8,15 @@
     <RouterView v-slot="{ Component }">
       <Transition name="page" mode="out-in">
         <component :is="Component" />
-      </Transition>
+      </Transition> 
     </RouterView>
   </template>
   <template v-else>
-    <AppHeader @search="onSearch" />
+    <AppHeader />
     <main class="flex-1">
       <RouterView v-slot="{ Component }">
         <Transition name="page" mode="out-in">
-          <component :is="Component" :search="searchQuery" />
+          <component :is="Component" />
         </Transition>
       </RouterView>
     </main>
@@ -26,7 +26,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import AppHeader from '@/components/shared/AppHeader.vue'
 import AppFooter from '@/components/shared/AppFooter.vue'
@@ -34,11 +34,8 @@ import CartDrawer from '@/components/shared/CartDrawer.vue'
 import AdminLayout from '@/components/admin/AdminLayout.vue'
 
 const route = useRoute()
-const searchQuery = ref('')
 const isAdminRoute = computed(() => route.path.startsWith('/admin'))
 const isAuthRoute = computed(() => route.path.startsWith('/auth'))
-
-function onSearch(q) { searchQuery.value = q }
 </script>
 
 <style>

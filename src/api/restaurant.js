@@ -4,7 +4,7 @@ export const categoryApi = {
   getAll: () => http.restaurant.get('/api/general-category'),
   getById: (id) => http.restaurant.get(`/api/general-category/${id}`),
   create: (data) => http.restaurant.post('/api/general-category', data),
-  getRestaurants: (categoryName) => http.restaurant.get(`/api/categories/${categoryName}/restaurants`),
+  getRestaurants: (categoryName) => http.restaurant.get(`/api/category/restaurants/${categoryName}`),
 }
 
 export const restaurantApi = {
@@ -16,7 +16,7 @@ export const restaurantApi = {
 
 export const menuitemApi = {
   getAll: () => http.restaurant.get(`/api/menu-items`),
-  getById: (id) => http.restaurant.get(`/api/single-menu-item/${id}`),
+  getById: (id) => http.restaurant.get(`/api/menu-items/${id}`),
   create: (data) => http.restaurant.post(`/api/menu-items`, data),
 }
 
@@ -24,4 +24,8 @@ export const adsApi = {
   getAll: () => http.restaurant.get('/api/ads'),
   create: (data) => http.restaurant.post('/api/ads', data),
   delete: (adId) => http.restaurant.delete(`/api/ads/${adId}`),
+}
+
+export const searchApi = {
+  search: (q) => http.restaurant.get('/api/search', { params: { q } }),
 }
