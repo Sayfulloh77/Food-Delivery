@@ -150,11 +150,14 @@
             <div>
               <label class="block text-xs font-medium text-slate-500 mb-1.5">Password</label>
               <div class="relative">
-                <input v-model="signUp.password" :type="showPass ? 'text' : 'password'" placeholder="Min. 8 characters" required class="auth-input pr-10" />
+                <input v-model="signUp.password" :type="showPass ? 'text' : 'password'" placeholder="Min. 6 characters" required class="auth-input pr-10" :style="passwordTouched && !passwordValid ? 'border-color:#ef4444' : ''" @blur="passwordTouched = true" />
                 <button type="button" @click="showPass = !showPass" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-600 hover:text-slate-300">
                   <Eye v-if="!showPass" class="w-4 h-4" /><EyeOff v-else class="w-4 h-4" />
                 </button>
               </div>
+              <p v-if="passwordTouched && !passwordValid" class="text-red-400 text-xs mt-1">
+                At least 6 characters, with one uppercase and one lowercase letter.
+              </p>
             </div>
             <div>
               <label class="block text-xs font-medium text-slate-500 mb-1.5">Confirm password</label>
@@ -167,7 +170,7 @@
               <p v-if="passwordMismatch" class="text-red-400 text-xs mt-1">Passwords do not match</p>
             </div>
             <p v-if="error" class="text-red-400 text-xs">{{ error }}</p>
-            <button type="submit" :disabled="loading || passwordMismatch" class="auth-btn w-full py-3 mt-1" :class="(loading || passwordMismatch) ? 'auth-btn-disabled' : ''">
+            <button type="submit" :disabled="loading || passwordMismatch || !passwordValid" class="auth-btn w-full py-3 mt-1" :class="(loading || passwordMismatch || !passwordValid) ? 'auth-btn-disabled' : ''">
               {{ loading ? 'Creating account…' : 'Create account' }}
             </button>
           </form>
@@ -212,11 +215,14 @@ const loading = ref(false)
 const error = ref('')
 const showPass = ref(false)
 const showConfirmPass = ref(false)
+const passwordTouched = ref(false)
 
 const signIn = ref({ email: '', password: '' })
 const signUp = ref({ email: '', name: '', password: '', confirmPassword: '' })
 const otpToken = ref('')
 
+const PASSWORD_RULE = /^(?=.*[a-z])(?=.*[A-Z]).{6,}$/
+const passwordValid = computed(() => PASSWORD_RULE.test(signUp.value.password))
 const passwordMismatch = computed(() =>
   signUp.value.confirmPassword.length > 0 && signUp.value.password !== signUp.value.confirmPassword
 )
@@ -233,7 +239,7 @@ function startCooldown() {
 }
 onUnmounted(() => clearInterval(cooldownTimer))
 
-function switchMode(target) { mode.value = target; error.value = ''; showPass.value = false }
+function switchMode(target) { mode.value = target; error.value = ''; showPass.value = false; passwordTouched.value = false }
 
 async function handleSendOtp() {
   error.value = ''; loading.value = true
@@ -250,7 +256,8 @@ async function handleVerifyOtp() {
 }
 
 async function handleRegister() {
-  if (passwordMismatch.value) return
+  passwordTouched.value = true
+  if (passwordMismatch.value || !passwordValid.value) return
   error.value = ''; loading.value = true
   try {
     const res = await authApi.register({ name: signUp.value.name, email: signUp.value.email, password: signUp.value.password, role_id: 1, otpToken: otpToken.value })

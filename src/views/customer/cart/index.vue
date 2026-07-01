@@ -118,7 +118,7 @@ import { ref } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import { Minus, Plus, X } from '@lucide/vue'
 import { useCartStore } from '@/stores/cart'
-import { cartApi, orderApi } from '@/api/order'
+import { orderApi } from '@/api/order'
 
 const cartStore = useCartStore()
 const router = useRouter()
@@ -127,11 +127,6 @@ const orderError = ref('')
 
 function formatPrice(amount) {
   return new Intl.NumberFormat('uz-UZ').format(amount) + ' UZS'
-}
-
-// Integer menu item IDs from restaurant service padded into UUID format for order service
-function toMenuItemUUID(id) {
-  return `00000000-0000-0000-0000-${String(id).padStart(12, '0')}`
 }
 
 async function placeOrder() {
@@ -143,24 +138,14 @@ async function placeOrder() {
   if (!restaurantId) { orderError.value = 'Cart error — missing restaurant.'; placing.value = false; return }
 
   try {
-    // Clear any existing items in the order service cart
-    const existing = await cartApi.get()
-    const existingItems = existing.data?.items ?? []
-    await Promise.all(existingItems.map(i => cartApi.removeItem(i.id)))
+    const items = cartStore.items.map(item => ({
+      menuItemId: item.id,
+      name: item.name,
+      qty: item.qty,
+      price: item.new_price ?? item.price,
+    }))
 
-    // Push each local cart item to the order service cart
-    await Promise.all(cartStore.items.map(item =>
-      cartApi.addItem({
-        restaurantId,
-        menuItemId: toMenuItemUUID(item.id),
-        qty: item.qty,
-        price: item.new_price ?? item.price,
-        name: item.name,
-      })
-    ))
-
-    // Place the order
-    await orderApi.create({ restaurantId })
+    await orderApi.create({ restaurantId, items })
 
     cartStore.clear()
     router.push('/orders')

@@ -1,11 +1,5 @@
 import http from './http'
 
-export const cartApi = {
-  get: () => http.order.get('/cart'),
-  addItem: (data) => http.order.post('/cart/items', data),
-  removeItem: (itemId) => http.order.delete(`/cart/items/${itemId}`),
-}
-
 export const orderApi = {
   getAll: () => http.order.get('/orders'),
   getById: (id) => http.order.get(`/orders/${id}`),
