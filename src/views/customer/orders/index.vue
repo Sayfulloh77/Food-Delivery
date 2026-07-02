@@ -27,10 +27,11 @@
 
       <!-- Order cards -->
       <div v-else class="space-y-4">
-        <div
+        <RouterLink
           v-for="order in orders"
           :key="order.id"
-          class="rounded-2xl border p-5 transition-all"
+          :to="`/orders/${order.id}`"
+          class="block rounded-2xl border p-5 transition-all hover:border-orange-500/40"
           style="background:#0d1b35;border-color:#1a2d4d"
         >
           <!-- Header row -->
@@ -39,7 +40,7 @@
               <p class="text-white font-bold text-sm">Order #{{ order.id.slice(0,8).toUpperCase() }}</p>
               <p class="text-slate-500 text-xs mt-0.5">{{ formatDate(order.createdAt) }}</p>
             </div>
-            <span class="text-xs font-bold px-3 py-1 rounded-full shrink-0" :style="statusStyle(order.status)">
+            <span class="text-xs font-bold px-3 py-1 rounded-full shrink-0" :style="orderStatusStyle(order.status)">
               {{ order.status }}
             </span>
           </div>
@@ -63,11 +64,11 @@
             v-if="order.status === 'CREATED'"
             class="mt-3 w-full py-2 rounded-xl text-sm font-semibold text-red-400 border transition hover:bg-red-950/30"
             style="border-color:#3f1010"
-            @click="cancelOrder(order.id)"
+            @click.stop.prevent="cancelOrder(order.id)"
           >
             Cancel order
           </button>
-        </div>
+        </RouterLink>
       </div>
 
     </div>
@@ -76,7 +77,9 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
+import { RouterLink } from 'vue-router'
 import { orderApi } from '@/api/order'
+import { orderStatusStyle } from '@/constants/orderStatus'
 
 const orders = ref([])
 const loading = ref(true)
@@ -111,19 +114,6 @@ function formatPrice(val) {
 function formatDate(str) {
   if (!str) return ''
   return new Date(str).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
-}
-
-function statusStyle(status) {
-  const map = {
-    CREATED: 'background:rgba(59,130,246,0.15);color:#60a5fa;border:1px solid rgba(59,130,246,0.3)',
-    CONFIRMED: 'background:rgba(249,115,22,0.15);color:#fb923c;border:1px solid rgba(249,115,22,0.3)',
-    PREPARING: 'background:rgba(234,179,8,0.15);color:#facc15;border:1px solid rgba(234,179,8,0.3)',
-    READY: 'background:rgba(168,85,247,0.15);color:#c084fc;border:1px solid rgba(168,85,247,0.3)',
-    DELIVERING: 'background:rgba(249,115,22,0.2);color:#f97316;border:1px solid rgba(249,115,22,0.4)',
-    DELIVERED: 'background:rgba(16,185,129,0.15);color:#34d399;border:1px solid rgba(16,185,129,0.3)',
-    CANCELLED: 'background:rgba(239,68,68,0.1);color:#f87171;border:1px solid rgba(239,68,68,0.2)',
-  }
-  return map[status] ?? 'background:#1a2d4d;color:#94a3b8'
 }
 
 onMounted(load)

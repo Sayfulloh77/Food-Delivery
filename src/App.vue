@@ -4,6 +4,16 @@
       <RouterView />
     </AdminLayout>
   </template>
+  <template v-else-if="isOwnerRoute">
+    <OwnerLayout>
+      <RouterView />
+    </OwnerLayout>
+  </template>
+  <template v-else-if="isCourierRoute">
+    <CourierLayout>
+      <RouterView />
+    </CourierLayout>
+  </template>
   <template v-else-if="isAuthRoute">
     <RouterView v-slot="{ Component }">
       <Transition name="page" mode="out-in">
@@ -32,9 +42,13 @@ import AppHeader from '@/components/shared/AppHeader.vue'
 import AppFooter from '@/components/shared/AppFooter.vue'
 import CartDrawer from '@/components/shared/CartDrawer.vue'
 import AdminLayout from '@/components/admin/AdminLayout.vue'
+import OwnerLayout from '@/components/owner/OwnerLayout.vue'
+import CourierLayout from '@/components/courier/CourierLayout.vue'
 
 const route = useRoute()
 const isAdminRoute = computed(() => route.path.startsWith('/admin'))
+const isOwnerRoute = computed(() => route.path.startsWith('/owner'))
+const isCourierRoute = computed(() => route.path.startsWith('/courier'))
 const isAuthRoute = computed(() => route.path.startsWith('/auth'))
 </script>
 

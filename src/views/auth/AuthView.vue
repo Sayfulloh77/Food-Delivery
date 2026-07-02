@@ -193,6 +193,7 @@ import { ref, computed, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { Eye, EyeOff, ShieldCheck, ArrowLeft, CheckCircle } from '@lucide/vue'
 import { authApi } from '@/api/auth'
+import { rolesApi } from '@/api/users'
 import { useAuthStore } from '@/stores/auth'
 import BrandLogo from '@/components/shared/BrandLogo.vue'
 
@@ -204,6 +205,10 @@ function redirectByRole() {
   const role = authStore.user?.role ?? authStore.user?.roles?.[0]
   if (role === 'ADMIN' || role === 'SUPERADMIN') {
     router.push('/admin/users')
+  } else if (role === 'RESTAURANT_OWNER') {
+    router.push('/owner/restaurants')
+  } else if (role === 'COURIER') {
+    router.push('/courier/orders')
   } else {
     const redirect = route.query.redirect
     router.push(typeof redirect === 'string' ? redirect : '/')
@@ -260,7 +265,9 @@ async function handleRegister() {
   if (passwordMismatch.value || !passwordValid.value) return
   error.value = ''; loading.value = true
   try {
-    const res = await authApi.register({ name: signUp.value.name, email: signUp.value.email, password: signUp.value.password, role_id: 1, otpToken: otpToken.value })
+    const rolesRes = await rolesApi.getForClient()
+    const customerRoleId = rolesRes.data?.[0]?.id
+    const res = await authApi.register({ name: signUp.value.name, email: signUp.value.email, password: signUp.value.password, role_id: customerRoleId, otpToken: otpToken.value })
     authStore.setTokens(res.data.access_token, res.data.refresh_token)
     await Promise.all([authStore.fetchMe(), authStore.fetchOrderToken('CUSTOMER')])
     redirectByRole()
@@ -275,8 +282,8 @@ async function handleSignIn() {
     authStore.setTokens(res.data.access_token, res.data.refresh_token)
     await authStore.fetchMe()
     const role = authStore.user?.role ?? authStore.user?.roles?.[0]
-    const orderRole = (role === 'ADMIN' || role === 'SUPERADMIN') ? 'ADMIN' : 'CUSTOMER'
-    await authStore.fetchOrderToken(orderRole)
+    const orderRoleMap = { ADMIN: 'ADMIN', SUPERADMIN: 'ADMIN', RESTAURANT_OWNER: 'RESTAURANT_OWNER', COURIER: 'COURIER' }
+    await authStore.fetchOrderToken(orderRoleMap[role] ?? 'CUSTOMER')
     redirectByRole()
   } catch (e) { error.value = e?.response?.data?.message ?? 'Invalid email or password.' }
   finally { loading.value = false }

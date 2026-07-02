@@ -188,7 +188,7 @@ async function updateRole() {
 async function removeRow(id) {
   if (!confirm('Delete this record?')) return
   try { await deleteApiMap[activeTab.value](id); data.value[activeTab.value] = data.value[activeTab.value].filter(r => r.id !== id) }
-  catch {}
+  catch (e) { alert(e.response?.data?.message ?? 'Failed to delete this record.') }
 }
 
 async function createAdmin() {

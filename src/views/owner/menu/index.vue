@@ -99,7 +99,7 @@
       </table>
     </div>
 
-    <!-- CATEGORIES -->
+    <!-- CATEGORIES (per-restaurant item categories) -->
     <div v-else-if="activeTab === 'categories'" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
       <div v-if="rows.length === 0" class="col-span-4 flex flex-col items-center justify-center py-16 text-zinc-700">
         <Tag class="w-10 h-10 mb-2 opacity-40" /><p class="text-sm">No categories yet</p>
@@ -149,8 +149,18 @@
 
         <!-- Menu item form -->
         <div v-else-if="activeTab === 'items'" class="space-y-4">
-          <MField label="Restaurant UUID *"><input v-model="form.restaurant" type="text" class="m-input" placeholder="uuid..." /></MField>
-          <MField label="Menu Category ID *"><input v-model="form.category" type="number" class="m-input" placeholder="1" /></MField>
+          <MField label="Restaurant *">
+            <select v-model="form.restaurant" class="m-input">
+              <option value="" disabled>Select restaurant</option>
+              <option v-for="r in restaurants" :key="r.id" :value="r.id">{{ r.name }}</option>
+            </select>
+          </MField>
+          <MField label="Item Category *">
+            <select v-model="form.category" class="m-input">
+              <option value="" disabled>Select category</option>
+              <option v-for="c in categoriesForRestaurant(form.restaurant)" :key="c.id" :value="c.id">{{ c.name }}</option>
+            </select>
+          </MField>
           <MField label="Name *"><input v-model="form.name" type="text" class="m-input" placeholder="Item name" /></MField>
           <MField label="Description"><textarea v-model="form.description" class="m-input resize-none h-16" /></MField>
           <div class="grid grid-cols-2 gap-4">
@@ -166,12 +176,23 @@
 
         <!-- Category form -->
         <div v-else-if="activeTab === 'categories'" class="space-y-4">
-          <MField label="Category name *"><input v-model="form.name" type="text" class="m-input" placeholder="e.g. Fast Food" /></MField>
+          <MField label="Restaurant *">
+            <select v-model="form.restaurant" class="m-input">
+              <option value="" disabled>Select restaurant</option>
+              <option v-for="r in restaurants" :key="r.id" :value="r.id">{{ r.name }}</option>
+            </select>
+          </MField>
+          <MField label="Category name *"><input v-model="form.name" type="text" class="m-input" placeholder="e.g. Appetizers" /></MField>
         </div>
 
         <!-- Ads form -->
         <div v-else-if="activeTab === 'ads'" class="space-y-4">
-          <MField label="Restaurant UUID *"><input v-model="form.restaurant" type="text" class="m-input" placeholder="uuid..." /></MField>
+          <MField label="Restaurant *">
+            <select v-model="form.restaurant" class="m-input">
+              <option value="" disabled>Select restaurant</option>
+              <option v-for="r in restaurants" :key="r.id" :value="r.id">{{ r.name }}</option>
+            </select>
+          </MField>
           <MField label="Promotion text *"><input v-model="form.promotion" type="text" class="m-input" placeholder="50% off today!" /></MField>
           <MField label="Ad image *"><input type="file" accept="image/*" @change="onFile($event, 'image_ads')" class="text-sm text-zinc-400" /></MField>
         </div>
@@ -192,7 +213,7 @@
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
 import { Plus, UtensilsCrossed, ShoppingBag, Tag, Trash2, Megaphone } from '@lucide/vue'
-import { restaurantApi, menuitemApi, categoryApi, adsApi } from '@/api/restaurant'
+import { restaurantApi, menuitemApi, menuCategoryApi, adsApi } from '@/api/restaurant'
 
 const MField = {
   props: ['label'],
@@ -214,15 +235,28 @@ const creating = ref(false)
 const createError = ref('')
 const form = ref({})
 
+const restaurants = computed(() => data.value.restaurants)
 const rows = computed(() => data.value[activeTab.value] ?? [])
 const counts = computed(() => Object.fromEntries(tabs.map(t => [t.key, data.value[t.key]?.length ?? 0])))
 const tabLabel = computed(() => tabs.find(t => t.key === activeTab.value)?.label ?? '')
 
+function categoriesForRestaurant(restaurantId) {
+  if (!restaurantId) return []
+  return data.value.categories.filter(c => c.restaurant === restaurantId)
+}
+
 const fetchMap = {
   restaurants: () => restaurantApi.getAll(),
   items: () => menuitemApi.getAll(),
-  categories: () => categoryApi.getAll(),
+  categories: () => menuCategoryApi.getAll(),
   ads: () => adsApi.getAll(),
+}
+
+const deleteApiMap = {
+  restaurants: (id) => restaurantApi.delete(id),
+  items: (id) => menuitemApi.delete(id),
+  categories: (id) => menuCategoryApi.delete(id),
+  ads: (id) => adsApi.delete(id),
 }
 
 async function loadTab(tab) {
@@ -233,7 +267,14 @@ async function loadTab(tab) {
   finally { loading.value = false }
 }
 
-function openCreate() { form.value = { is_open: true, discount_status: false }; createError.value = ''; showCreate.value = true }
+function openCreate() {
+  form.value = { is_open: true, discount_status: false, restaurant: '', category: '' }
+  createError.value = ''
+  showCreate.value = true
+  if (data.value.restaurants.length === 0) loadTab('restaurants')
+  if (activeTab.value === 'items' && data.value.categories.length === 0) loadTab('categories')
+}
+
 function onFile(e, field) { form.value[field] = e.target.files[0] ?? null }
 
 function buildFormData() {
@@ -255,7 +296,7 @@ async function submitCreate() {
     let res
     if (activeTab.value === 'restaurants') res = await restaurantApi.create(fd)
     else if (activeTab.value === 'items') res = await menuitemApi.create(fd)
-    else if (activeTab.value === 'categories') res = await categoryApi.create(fd)
+    else if (activeTab.value === 'categories') res = await menuCategoryApi.create(fd)
     else if (activeTab.value === 'ads') res = await adsApi.create(fd)
     if (res?.data) data.value[activeTab.value].unshift(res.data)
     showCreate.value = false
@@ -266,7 +307,7 @@ async function submitCreate() {
 async function deleteRow(id) {
   if (!confirm('Delete this item?')) return
   try {
-    if (activeTab.value === 'ads') await adsApi.delete(id)
+    await deleteApiMap[activeTab.value](id)
     data.value[activeTab.value] = data.value[activeTab.value].filter(r => r.id !== id)
   } catch {}
 }
@@ -289,4 +330,5 @@ onMounted(() => loadTab('restaurants'))
 }
 .m-input { background: #060d1c; border-color: #1a2d4d; }
 .m-input:focus { border-color: #f97316; }
+.m-input option { background: #060d1c; }
 </style>

@@ -145,10 +145,10 @@ async function placeOrder() {
       price: item.new_price ?? item.price,
     }))
 
-    await orderApi.create({ restaurantId, items })
+    const res = await orderApi.create({ restaurantId, items })
 
     cartStore.clear()
-    router.push('/orders')
+    router.push(res.data?.id ? `/orders/${res.data.id}` : '/orders')
   } catch {
     orderError.value = 'Failed to place order. Please try again.'
   } finally {
