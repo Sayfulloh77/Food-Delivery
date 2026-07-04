@@ -150,7 +150,7 @@ const rows = computed(() => data.value[activeTab.value] ?? [])
 const counts = computed(() => Object.fromEntries(tabs.map(t => [t.key, data.value[t.key]?.length ?? 0])))
 
 const apiMap = {
-  users: usersApi.getAll, customers: customersApi.getAll,
+  customers: customersApi.getAll,
   couriers: couriersApi.getAll, owners: restaurantOwnersApi.getAll, admins: adminsApi.getAll,
 }
 const deleteApiMap = {
@@ -158,10 +158,26 @@ const deleteApiMap = {
   couriers: (id) => couriersApi.remove(id), owners: (id) => restaurantOwnersApi.remove(id), admins: (id) => adminsApi.remove(id),
 }
 
+// GET /users is paginated (wraps rows in { data, total, ... }) and doesn't include
+// per-role name fields, so "All Users" is built by merging the four role-specific
+// endpoints instead, which return plain arrays with names already included.
+async function loadAllUsers() {
+  const [customers, couriers, owners, admins] = await Promise.all([
+    customersApi.getAll(), couriersApi.getAll(), restaurantOwnersApi.getAll(), adminsApi.getAll(),
+  ])
+  const tag = (res, fallbackRole) => (res.data ?? []).map(u => ({ ...u, role: u.role ?? fallbackRole }))
+  return [
+    ...tag(customers, 'CUSTOMER'),
+    ...tag(couriers, 'COURIER'),
+    ...tag(owners, 'RESTAURANT_OWNER'),
+    ...tag(admins, 'ADMIN'),
+  ]
+}
+
 async function loadTab(tab) {
   if (data.value[tab].length > 0) return
   loading.value = true
-  try { const res = await apiMap[tab](); data.value[tab] = res.data ?? [] }
+  try { data.value[tab] = tab === 'users' ? await loadAllUsers() : (await apiMap[tab]()).data ?? [] }
   catch { data.value[tab] = [] }
   finally { loading.value = false }
 }
