@@ -1,0 +1,1120 @@
+openapi: 3.0.3
+info:
+  title: Ishonch Food Delivery API Swagger
+  version: 1.0.0
+  description: Comprehensive API documentation for the IshonchFood backend system.
+paths:
+  /api/ads:
+    get:
+      operationId: api_ads_list
+      description: Get popular menu items
+      tags:
+      - Popular Ads
+      security:
+      - BearerAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Advertisement'
+          description: ''
+    post:
+      operationId: api_ads_create
+      description: Post popular menu items
+      tags:
+      - Popular Ads
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdvertisementRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/AdvertisementRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AdvertisementRequest'
+        required: true
+      security:
+      - BearerAuth: []
+      - {}
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Advertisement'
+          description: ''
+  /api/ads/{ad_id}:
+    patch:
+      operationId: api_ads_partial_update
+      description: Update an advertisement completely (Admin Only)
+      parameters:
+      - in: path
+        name: ad_id
+        schema:
+          type: integer
+        description: ID of the advertisement to update
+        required: true
+      tags:
+      - Popular Ads
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedAdvertisementRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedAdvertisementRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedAdvertisementRequest'
+      security:
+      - BearerAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Advertisement'
+          description: ''
+    delete:
+      operationId: api_ads_destroy
+      description: Permanently remove an ad from the system (Admin Only).
+      parameters:
+      - in: path
+        name: ad_id
+        schema:
+          type: integer
+        description: Advertisement ID to delete
+        required: true
+      tags:
+      - Popular Ads
+      security:
+      - BearerAuth: []
+      - {}
+      responses:
+        '204':
+          description: No response body
+  /api/category/restaurants/{category_name}:
+    get:
+      operationId: api_category_restaurants_list
+      description: Get Restaurants by category_id
+      parameters:
+      - in: path
+        name: category_name
+        schema:
+          type: string
+        required: true
+      tags:
+      - Filter restaurants by General Category
+      security:
+      - BearerAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Restaurant'
+          description: ''
+  /api/general-category:
+    get:
+      operationId: api_general_category_list
+      description: Get All General Categories (Public)
+      tags:
+      - General Category
+      security:
+      - BearerAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Category'
+          description: ''
+    post:
+      operationId: api_general_category_create
+      description: Post A New General Category (Admin Only)
+      tags:
+      - General Category
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CategoryRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CategoryRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CategoryRequest'
+        required: true
+      security:
+      - BearerAuth: []
+      - {}
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Category'
+          description: ''
+  /api/general-category/{id}:
+    patch:
+      operationId: api_general_category_partial_update
+      description: Update A General Category (Admin Only)
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - General Category
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedCategoryRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedCategoryRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedCategoryRequest'
+      security:
+      - BearerAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Category'
+          description: ''
+    delete:
+      operationId: api_general_category_destroy
+      description: DELETE A General Category (Admin Only)
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - General Category
+      security:
+      - BearerAuth: []
+      - {}
+      responses:
+        '204':
+          description: No response body
+  /api/menu-category:
+    get:
+      operationId: api_menu_category_list
+      description: Retrieve a list of all categories.
+      tags:
+      - Category Menu of Restaurant
+      security:
+      - BearerAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CategoryMenu'
+          description: ''
+    post:
+      operationId: api_menu_category_create
+      description: Create a new category tab (Restaurant Owner / Admin).
+      tags:
+      - Category Menu of Restaurant
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CategoryMenuRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CategoryMenuRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CategoryMenuRequest'
+        required: true
+      security:
+      - BearerAuth: []
+      - {}
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CategoryMenu'
+          description: ''
+  /api/menu-category/{id}:
+    get:
+      operationId: api_menu_category_retrieve
+      description: get menu category by its id
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Category Menu of Restaurant
+      security:
+      - BearerAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CategoryMenu'
+          description: ''
+    patch:
+      operationId: api_menu_category_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Category Menu of Restaurant
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedCategoryMenuRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedCategoryMenuRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedCategoryMenuRequest'
+      security:
+      - BearerAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CategoryMenu'
+          description: ''
+    delete:
+      operationId: api_menu_category_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Category Menu of Restaurant
+      security:
+      - BearerAuth: []
+      - {}
+      responses:
+        '204':
+          description: No response body
+  /api/menu-items:
+    get:
+      operationId: api_menu_items_list
+      description: Retrieve a list of all menu items.
+      tags:
+      - Menu Items
+      security:
+      - BearerAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MenuItem'
+          description: ''
+    post:
+      operationId: api_menu_items_create
+      description: Create a new menu item.
+      tags:
+      - Menu Items
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MenuItemRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/MenuItemRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/MenuItemRequest'
+        required: true
+      security:
+      - BearerAuth: []
+      - {}
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MenuItem'
+          description: ''
+  /api/menu-items/{id}:
+    get:
+      operationId: api_menu_items_retrieve
+      description: Get menuitem by its id
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Menu Items
+      security:
+      - BearerAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MenuItem'
+          description: ''
+    patch:
+      operationId: api_menu_items_partial_update
+      description: Update menu item by its id
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Menu Items
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedMenuItemRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedMenuItemRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedMenuItemRequest'
+      security:
+      - BearerAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MenuItem'
+          description: ''
+    delete:
+      operationId: api_menu_items_destroy
+      description: Delete menu item by its id
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Menu Items
+      security:
+      - BearerAuth: []
+      - {}
+      responses:
+        '204':
+          description: No response body
+  /api/restaurant/{uuid}:
+    get:
+      operationId: api_restaurant_retrieve
+      description: Fetch a restaurant's full profile details (Authenticated)
+      parameters:
+      - in: path
+        name: uuid
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Restaurants
+      security:
+      - BearerAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Restaurant'
+          description: ''
+    patch:
+      operationId: api_restaurant_partial_update
+      description: Modify an existing restaurant profile (Owner or Admin)
+      parameters:
+      - in: path
+        name: uuid
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Restaurants
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedRestaurantRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedRestaurantRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedRestaurantRequest'
+      security:
+      - BearerAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Restaurant'
+          description: ''
+    delete:
+      operationId: api_restaurant_destroy
+      description: Permanently remove a restaurant profile (Admin Only)
+      parameters:
+      - in: path
+        name: uuid
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Restaurants
+      security:
+      - BearerAuth: []
+      - {}
+      responses:
+        '204':
+          description: No response body
+  /api/restaurants:
+    get:
+      operationId: api_restaurants_list
+      description: Retrieve a list of all restaurants. (Public)
+      tags:
+      - Restaurants
+      security:
+      - BearerAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Restaurant'
+          description: ''
+    post:
+      operationId: api_restaurants_create
+      description: Register a new restaurant. (Admin Only)
+      tags:
+      - Restaurants
+      requestBody:
+        content:
+          application/vnd.ishonch.restaurant+json:
+            schema:
+              $ref: '#/components/schemas/RestaurantRequest'
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RestaurantRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/RestaurantRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/RestaurantRequest'
+        required: true
+      security:
+      - BearerAuth: []
+      - {}
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Restaurant'
+          description: ''
+  /api/restaurants-by-owner-id:
+    get:
+      operationId: api_restaurants_by_owner_id_list
+      description: Returns a list of restaurants. Can be filtered by passing an optional
+        `owner_id` query parameter.
+      parameters:
+      - in: query
+        name: owner_id
+        schema:
+          type: integer
+        description: The database ID of the restaurant owner
+      tags:
+      - Restaurants
+      security:
+      - BearerAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Restaurant'
+          description: ''
+  /api/restaurants/{restaurant_uuid}/menu:
+    get:
+      operationId: api_restaurants_menu_list
+      description: Get all menu items for a specific restaurant by filtering through
+        its menu categories.
+      parameters:
+      - in: path
+        name: restaurant_uuid
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Find menu all items by restaurant_id
+      security:
+      - BearerAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MenuItem'
+          description: ''
+  /api/restaurants/{restaurant_uuid}/menu-items:
+    get:
+      operationId: api_restaurants_menu_items_list
+      description: Provide nested category menu -> menu items inside.
+      parameters:
+      - in: path
+        name: restaurant_uuid
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Resturant Category Menu -> Menu Items
+      security:
+      - BearerAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CategoryMenuOfMenuCategory'
+          description: ''
+  /api/restaurants/{restaurant_uuid}/menu_categories/{category_menu_name}/items:
+    get:
+      operationId: api_restaurants_menu_categories_items_list
+      description: Get all menu items for a specific restaurant under a specific menu
+        category section (e.g., Only Burgers from KFC).
+      parameters:
+      - in: path
+        name: category_menu_name
+        schema:
+          type: string
+        required: true
+      - in: path
+        name: restaurant_uuid
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Get all menu items of restaurant with specific menu category
+      security:
+      - BearerAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MenuItem'
+          description: ''
+  /api/restaurants/{restaurant_uuid}/menucategory:
+    get:
+      operationId: api_restaurants_menucategory_list
+      description: get menu category by restaurant_id
+      parameters:
+      - in: path
+        name: restaurant_uuid
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Find menu category by restaurant_id
+      security:
+      - BearerAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CategoryMenu'
+          description: ''
+  /api/search:
+    get:
+      operationId: api_search_retrieve
+      description: Global search across restaurants and menu items.
+      parameters:
+      - in: query
+        name: query
+        schema:
+          type: string
+        description: Search keyword for restaurant names or menu items (e.g., 'lavash')
+        required: true
+      tags:
+      - Search
+      security:
+      - BearerAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+components:
+  schemas:
+    Advertisement:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        restaurant:
+          type: string
+          format: uuid
+        image_ads:
+          type: string
+          format: uri
+        promotion:
+          type: string
+          maxLength: 255
+      required:
+      - id
+      - image_ads
+      - promotion
+      - restaurant
+    AdvertisementRequest:
+      type: object
+      properties:
+        restaurant:
+          type: string
+          format: uuid
+        image_ads:
+          type: string
+          format: binary
+        promotion:
+          type: string
+          minLength: 1
+          maxLength: 255
+      required:
+      - image_ads
+      - promotion
+      - restaurant
+    Category:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          maxLength: 100
+      required:
+      - id
+      - name
+    CategoryMenu:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        restaurant:
+          type: string
+          format: uuid
+        name:
+          type: string
+          maxLength: 100
+      required:
+      - id
+      - name
+      - restaurant
+    CategoryMenuOfMenuCategory:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        restaurant:
+          type: string
+          format: uuid
+        name:
+          type: string
+          maxLength: 100
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/MenuItem'
+          readOnly: true
+      required:
+      - id
+      - items
+      - name
+      - restaurant
+    CategoryMenuRequest:
+      type: object
+      properties:
+        restaurant:
+          type: string
+          format: uuid
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+      required:
+      - name
+      - restaurant
+    CategoryRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+      required:
+      - name
+    MenuItem:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        category:
+          type: array
+          items:
+            type: integer
+        restaurant_uuid:
+          type: string
+          format: uuid
+          nullable: true
+        name:
+          type: string
+          maxLength: 255
+        description:
+          type: string
+          nullable: true
+        price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        new_price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          nullable: true
+        discount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          nullable: true
+        discount_status:
+          type: boolean
+        promotion:
+          type: string
+          nullable: true
+          maxLength: 255
+        img_product:
+          type: string
+          format: uri
+          nullable: true
+        delivery_time:
+          type: string
+          nullable: true
+          maxLength: 255
+      required:
+      - category
+      - id
+      - name
+      - price
+    MenuItemRequest:
+      type: object
+      properties:
+        category:
+          type: array
+          items:
+            type: integer
+        restaurant_uuid:
+          type: string
+          format: uuid
+          nullable: true
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        description:
+          type: string
+          nullable: true
+        price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        new_price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          nullable: true
+        discount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          nullable: true
+        discount_status:
+          type: boolean
+        promotion:
+          type: string
+          nullable: true
+          maxLength: 255
+        img_product:
+          type: string
+          format: binary
+          nullable: true
+        delivery_time:
+          type: string
+          nullable: true
+          maxLength: 255
+      required:
+      - category
+      - name
+      - price
+    PatchedAdvertisementRequest:
+      type: object
+      properties:
+        restaurant:
+          type: string
+          format: uuid
+        image_ads:
+          type: string
+          format: binary
+        promotion:
+          type: string
+          minLength: 1
+          maxLength: 255
+    PatchedCategoryMenuRequest:
+      type: object
+      properties:
+        restaurant:
+          type: string
+          format: uuid
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+    PatchedCategoryRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+    PatchedMenuItemRequest:
+      type: object
+      properties:
+        category:
+          type: array
+          items:
+            type: integer
+        restaurant_uuid:
+          type: string
+          format: uuid
+          nullable: true
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        description:
+          type: string
+          nullable: true
+        price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        new_price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          nullable: true
+        discount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          nullable: true
+        discount_status:
+          type: boolean
+        promotion:
+          type: string
+          nullable: true
+          maxLength: 255
+        img_product:
+          type: string
+          format: binary
+          nullable: true
+        delivery_time:
+          type: string
+          nullable: true
+          maxLength: 255
+    PatchedRestaurantRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        description:
+          type: string
+          nullable: true
+        address:
+          type: string
+          format: uri
+          nullable: true
+          maxLength: 500
+        is_open:
+          type: boolean
+        restaurant_img:
+          type: string
+          format: binary
+          nullable: true
+        categories:
+          type: array
+          items:
+            type: integer
+    Restaurant:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        owner_user_id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          maxLength: 255
+        description:
+          type: string
+          nullable: true
+        address:
+          type: string
+          format: uri
+          nullable: true
+          maxLength: 500
+        is_open:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        restaurant_img:
+          type: string
+          format: uri
+          nullable: true
+        categories:
+          type: array
+          items:
+            type: integer
+      required:
+      - categories
+      - created_at
+      - id
+      - name
+      - owner_user_id
+    RestaurantRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        description:
+          type: string
+          nullable: true
+        address:
+          type: string
+          format: uri
+          nullable: true
+          maxLength: 500
+        is_open:
+          type: boolean
+        restaurant_img:
+          type: string
+          format: binary
+          nullable: true
+        categories:
+          type: array
+          items:
+            type: integer
+      required:
+      - categories
+      - name
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Paste your raw Node.js access token below (Do NOT type "Bearer").

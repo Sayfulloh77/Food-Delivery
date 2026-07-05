@@ -15,7 +15,7 @@
         <RouterLink
           v-for="item in navItems"
           :key="item.to"
-          :to="item.to"
+          :to="item.to"   
           class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all"
           :style="isActive(item.to)
             ? 'background:rgba(249,115,22,0.15);color:#f97316;border-left:3px solid #f97316'

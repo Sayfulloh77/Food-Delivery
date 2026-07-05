@@ -17,8 +17,10 @@ export const menuCategoryApi = {
 
 export const restaurantApi = {
   getAll: () => http.restaurant.get('/api/restaurants'),
+  getByOwner: (ownerId) => http.restaurant.get('/api/restaurants-by-owner-id', { params: { owner_id: ownerId } }),
   getById: (uuid) => http.restaurant.get(`/api/restaurant/${uuid}`),
   create: (data) => http.restaurant.post('/api/restaurants', data),
+  update: (uuid, data) => http.restaurant.patch(`/api/restaurant/${uuid}`, data),
   delete: (uuid) => http.restaurant.delete(`/api/restaurant/${uuid}`),
   getMenu: (restaurantId) => http.restaurant.get(`/api/restaurants/${restaurantId}/menu`),
 }

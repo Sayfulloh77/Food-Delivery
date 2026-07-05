@@ -18,10 +18,10 @@
     <RouterView v-slot="{ Component }">
       <Transition name="page" mode="out-in">
         <component :is="Component" />
-      </Transition> 
+      </Transition>
     </RouterView>
   </template>
-  <template v-else>
+  <template v-else >
     <AppHeader />
     <main class="flex-1">
       <RouterView v-slot="{ Component }">

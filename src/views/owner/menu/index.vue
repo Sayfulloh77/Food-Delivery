@@ -214,6 +214,10 @@
 import { ref, computed, watch, onMounted, h } from 'vue'
 import { Plus, UtensilsCrossed, ShoppingBag, Tag, Trash2, Megaphone } from '@lucide/vue'
 import { restaurantApi, menuitemApi, menuCategoryApi, adsApi } from '@/api/restaurant'
+import { useAuthStore } from '@/stores/auth'
+
+const authStore = useAuthStore()
+const ownerId = computed(() => authStore.user?.id)
 
 const MField = {
   props: ['label'],
@@ -251,7 +255,7 @@ function categoriesForRestaurant(restaurantId) {
 }
 
 const fetchMap = {
-  restaurants: () => restaurantApi.getAll(),
+  restaurants: () => restaurantApi.getByOwner(ownerId.value),
   items: () => menuitemApi.getAll(),
   categories: () => menuCategoryApi.getAll(),
   ads: () => adsApi.getAll(),
@@ -286,7 +290,8 @@ function buildFormData() {
   const fd = new FormData()
   for (const [k, v] of Object.entries(form.value)) {
     if (k === 'categoriesRaw' || v === null || v === undefined) continue
-    fd.append(k, v)
+    const key = activeTab.value === 'items' && k === 'restaurant' ? 'restaurant_uuid' : k
+    fd.append(key, v)
   }
   if (activeTab.value === 'restaurants' && form.value.categoriesRaw) {
     form.value.categoriesRaw.split(',').map(s => s.trim()).filter(Boolean).forEach(id => fd.append('categories', id))
