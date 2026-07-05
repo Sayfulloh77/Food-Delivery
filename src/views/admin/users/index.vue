@@ -119,13 +119,18 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, h } from 'vue'
 import { Users, Plus } from '@lucide/vue'
 import { usersApi, customersApi, couriersApi, restaurantOwnersApi, adminsApi, rolesApi } from '@/api/users'
 
 const AdminField = {
   props: ['label'],
-  template: `<div><label class="block text-xs font-medium text-zinc-500 mb-1.5">{{ label }}</label><slot /></div>`,
+  setup(props, { slots }) {
+    return () => h('div', [
+      h('label', { class: 'block text-xs font-medium text-zinc-500 mb-1.5' }, props.label),
+      slots.default?.(),
+    ])
+  },
 }
 
 const tabs = [

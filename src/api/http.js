@@ -26,13 +26,11 @@ const instances = {
 }
 
 // Each service uses a different JWT secret, so we use the right token per service:
-// - auth / notification: use the main auth service accessToken
+// - auth / notification / restaurant: use the main auth service accessToken
 // - order: uses its own token (orderToken) fetched separately after login
-// - restaurant: no auth header (optional auth, rejects foreign tokens with 401)
 function getTokenForService(name) {
   if (name === 'order') return localStorage.getItem('orderToken')
-  if (name === 'auth' || name === 'notification') return localStorage.getItem('accessToken')
-  return null // restaurant — no token
+  return localStorage.getItem('accessToken')
 }
 
 Object.entries(instances).forEach(([name, instance]) => {

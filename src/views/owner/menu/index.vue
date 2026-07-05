@@ -211,13 +211,18 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, h } from 'vue'
 import { Plus, UtensilsCrossed, ShoppingBag, Tag, Trash2, Megaphone } from '@lucide/vue'
 import { restaurantApi, menuitemApi, menuCategoryApi, adsApi } from '@/api/restaurant'
 
 const MField = {
   props: ['label'],
-  template: `<div><label class="block text-xs font-medium text-zinc-500 mb-1.5">{{ label }}</label><slot /></div>`,
+  setup(props, { slots }) {
+    return () => h('div', [
+      h('label', { class: 'block text-xs font-medium text-zinc-500 mb-1.5' }, props.label),
+      slots.default?.(),
+    ])
+  },
 }
 
 const tabs = [
@@ -309,7 +314,9 @@ async function deleteRow(id) {
   try {
     await deleteApiMap[activeTab.value](id)
     data.value[activeTab.value] = data.value[activeTab.value].filter(r => r.id !== id)
-  } catch {}
+  } catch (e) {
+    alert(e.response?.data?.detail ?? e.response?.data?.message ?? 'Failed to delete')
+  }
 }
 
 watch(activeTab, tab => loadTab(tab))
