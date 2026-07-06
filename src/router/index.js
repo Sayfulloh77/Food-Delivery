@@ -21,6 +21,8 @@ const router = createRouter({
     // Admin — Users/Roles oversight + order oversight (assign courier, force status)
     { path: '/admin/users', meta: { roles: ['ADMIN', 'SUPERADMIN'] }, component: () => import('@/views/admin/users/index.vue') },
     { path: '/admin/orders', meta: { roles: ['ADMIN', 'SUPERADMIN'] }, component: () => import('@/views/admin/orders/index.vue') },
+    // Testing only — reuses the owner's restaurant/menu-item/category/ads CRUD page
+    { path: '/admin/restaurants', meta: { roles: ['ADMIN', 'SUPERADMIN'] }, component: () => import('@/views/owner/menu/index.vue') },
 
     // Restaurant Owner — restaurants, menu items, item categories, ads
     { path: '/owner/restaurants', meta: { roles: ['RESTAURANT_OWNER'] }, component: () => import('@/views/owner/menu/index.vue') },

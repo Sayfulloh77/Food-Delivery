@@ -218,6 +218,7 @@ import { useAuthStore } from '@/stores/auth'
 
 const authStore = useAuthStore()
 const ownerId = computed(() => authStore.user?.id)
+const isAdmin = computed(() => ['ADMIN', 'SUPERADMIN'].includes(authStore.user?.role))
 
 const MField = {
   props: ['label'],
@@ -255,7 +256,7 @@ function categoriesForRestaurant(restaurantId) {
 }
 
 const fetchMap = {
-  restaurants: () => restaurantApi.getByOwner(ownerId.value),
+  restaurants: () => (isAdmin.value ? restaurantApi.getAll() : restaurantApi.getByOwner(ownerId.value)),
   items: () => menuitemApi.getAll(),
   categories: () => menuCategoryApi.getAll(),
   ads: () => adsApi.getAll(),

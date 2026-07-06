@@ -63,7 +63,7 @@
 <script setup>
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Users, ClipboardList, LogOut } from '@lucide/vue'
+import { Users, ClipboardList, LogOut, UtensilsCrossed } from '@lucide/vue'
 import { useAuthStore } from '@/stores/auth'
 import BrandLogo from '@/components/shared/BrandLogo.vue'
 
@@ -74,11 +74,13 @@ const authStore = useAuthStore()
 const navItems = [
   { to: '/admin/users', label: 'Users', icon: Users },
   { to: '/admin/orders', label: 'Orders', icon: ClipboardList },
+  { to: '/admin/restaurants', label: 'Restaurants', icon: UtensilsCrossed },
 ]
 
 const pageTitles = {
   '/admin/users': 'User Management',
   '/admin/orders': 'Orders',
+  '/admin/restaurants': 'Restaurants',
 }
 
 const currentPageTitle = computed(() => pageTitles[route.path] ?? 'Admin Panel')
