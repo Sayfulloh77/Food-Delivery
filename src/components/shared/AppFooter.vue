@@ -22,8 +22,7 @@
         <div>
           <h4 class="text-slate-400 font-semibold mb-4 text-xs uppercase tracking-widest">For Restaurants</h4>
           <ul class="space-y-2 text-sm text-slate-500">
-            <li><a href="#" class="hover:text-white transition-colors">Partner with us</a></li>
-            <li><RouterLink to="/admin/menu" class="hover:text-white transition-colors">Restaurant portal</RouterLink></li>
+            <li><a href="#" class="hover:text-white transition-colors">Partner with us</a></li>            <li><RouterLink to="/admin/restaurants" class="hover:text-white transition-colors">Restaurant portal</RouterLink></li>
           </ul>
         </div>
 
