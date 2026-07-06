@@ -194,7 +194,7 @@ async function loadRoles() {
 
 async function activateUser(id) {
   try { await usersApi.activate(id); const u = data.value.users.find(u => u.id === id); if (u) u.is_active = true }
-  catch {}
+  catch (e) { alert(e.response?.data?.message ?? 'Failed to activate user.') }
 }
 
 function openRoleModal(user) {
