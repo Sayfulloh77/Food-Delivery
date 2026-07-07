@@ -150,13 +150,13 @@
             <div>
               <label class="block text-xs font-medium text-slate-500 mb-1.5">Password</label>
               <div class="relative">
-                <input v-model="signUp.password" :type="showPass ? 'text' : 'password'" placeholder="Min. 6 characters" required class="auth-input pr-10" :style="passwordTouched && !passwordValid ? 'border-color:#ef4444' : ''" @blur="passwordTouched = true" />
+                <input v-model="signUp.password" :type="showPass ? 'text' : 'password'" placeholder="Min. 6 characters" required maxlength="20" class="auth-input pr-10" :style="passwordTouched && !passwordValid ? 'border-color:#ef4444' : ''" @blur="passwordTouched = true" />
                 <button type="button" @click="showPass = !showPass" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-600 hover:text-slate-300">
                   <Eye v-if="!showPass" class="w-4 h-4" /><EyeOff v-else class="w-4 h-4" />
                 </button>
               </div>
               <p v-if="passwordTouched && !passwordValid" class="text-red-400 text-xs mt-1">
-                At least 6 characters, with one uppercase and one lowercase letter.
+                6-20 characters, with at least 1 uppercase letter, 1 number, and 1 special character.
               </p>
             </div>
             <div>
@@ -193,7 +193,6 @@ import { ref, computed, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { Eye, EyeOff, ShieldCheck, ArrowLeft, CheckCircle } from '@lucide/vue'
 import { authApi } from '@/api/auth'
-import { rolesApi } from '@/api/users'
 import { useAuthStore } from '@/stores/auth'
 import BrandLogo from '@/components/shared/BrandLogo.vue'
 
@@ -226,7 +225,12 @@ const signIn = ref({ email: '', password: '' })
 const signUp = ref({ email: '', name: '', password: '', confirmPassword: '' })
 const otpToken = ref('')
 
-const PASSWORD_RULE = /^(?=.*[a-z])(?=.*[A-Z]).{6,}$/
+// /roles/for-client only lists roles a user can self-declare (courier, restaurant owner) and
+// /roles (which has the real id) requires an admin token we don't have yet during signup —
+// so until there's a role picker, every public signup is hardcoded to CUSTOMER.
+const CUSTOMER_ROLE_ID = 3
+
+const PASSWORD_RULE = /^(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{6,20}$/
 const passwordValid = computed(() => PASSWORD_RULE.test(signUp.value.password))
 const passwordMismatch = computed(() =>
   signUp.value.confirmPassword.length > 0 && signUp.value.password !== signUp.value.confirmPassword
@@ -265,9 +269,7 @@ async function handleRegister() {
   if (passwordMismatch.value || !passwordValid.value) return
   error.value = ''; loading.value = true
   try {
-    const rolesRes = await rolesApi.getForClient()
-    const customerRoleId = rolesRes.data?.[0]?.id
-    const res = await authApi.register({ name: signUp.value.name, email: signUp.value.email, password: signUp.value.password, role_id: customerRoleId, otpToken: otpToken.value })
+    const res = await authApi.register({ name: signUp.value.name, email: signUp.value.email, password: signUp.value.password, role_id: CUSTOMER_ROLE_ID, otpToken: otpToken.value })
     authStore.setTokens(res.data.access_token, res.data.refresh_token)
     await Promise.all([authStore.fetchMe(), authStore.fetchOrderToken('CUSTOMER')])
     redirectByRole()

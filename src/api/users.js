@@ -1,7 +1,7 @@
 import http from './http'
 
 export const usersApi = {
-  getAll: () => http.auth.get('/users'),
+  getAll: () => http.auth.get('/users', { params: { limit: 100 } }),
   activate: (id) => http.auth.patch(`/users/activate/${id}`),
   updateRole: (userId, roleId) => http.auth.patch('/users/role-update', { user_id: userId, role_id: roleId }),
   remove: (id) => http.auth.delete(`/users/${id}`),

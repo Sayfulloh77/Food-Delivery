@@ -17,7 +17,9 @@ export const useAuthStore = defineStore('auth', () => {
   async function fetchOrderToken(role = 'CUSTOMER') {
     try {
       const res = await axios.get(`${import.meta.env.VITE_ORDER_URL}/auth/token?role=${role}`)
-      const token = typeof res.data === 'string' ? res.data : null
+      // The order service returns the token wrapped in an object (key name isn't fixed),
+      // not a bare string — grab the first string value instead of assuming a shape.
+      const token = typeof res.data === 'string' ? res.data : Object.values(res.data ?? {}).find(v => typeof v === 'string')
       if (token) {
         orderToken.value = token
         localStorage.setItem('orderToken', token)

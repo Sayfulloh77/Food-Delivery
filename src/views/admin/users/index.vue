@@ -163,20 +163,12 @@ const deleteApiMap = {
   couriers: (id) => couriersApi.remove(id), owners: (id) => restaurantOwnersApi.remove(id), admins: (id) => adminsApi.remove(id),
 }
 
-// GET /users is paginated (wraps rows in { data, total, ... }) and doesn't include
-// per-role name fields, so "All Users" is built by merging the four role-specific
-// endpoints instead, which return plain arrays with names already included.
+// GET /users returns the shared users table directly (real id, email, role, is_active) —
+// using this instead of merging the per-role endpoints avoids acting on the wrong id,
+// since /customers, /couriers, /restaurant-owners expose their own table's id, not users.id.
 async function loadAllUsers() {
-  const [customers, couriers, owners, admins] = await Promise.all([
-    customersApi.getAll(), couriersApi.getAll(), restaurantOwnersApi.getAll(), adminsApi.getAll(),
-  ])
-  const tag = (res, fallbackRole) => (res.data ?? []).map(u => ({ ...u, role: u.role ?? fallbackRole }))
-  return [
-    ...tag(customers, 'CUSTOMER'),
-    ...tag(couriers, 'COURIER'),
-    ...tag(owners, 'RESTAURANT_OWNER'),
-    ...tag(admins, 'ADMIN'),
-  ]
+  const res = await usersApi.getAll()
+  return res.data?.data ?? []
 }
 
 async function loadTab(tab) {
