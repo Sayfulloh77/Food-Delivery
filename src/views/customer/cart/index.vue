@@ -75,6 +75,17 @@
           </div>
         </div>
 
+        <!-- Delivery address -->
+        <div class="bg-white rounded-2xl p-5 shadow-sm mb-3">
+          <label class="block text-xs font-semibold text-gray-500 mb-1.5">Delivery address</label>
+          <input
+            v-model="deliveryAddress"
+            type="text"
+            placeholder="Street, house, apartment…"
+            class="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-orange-400 transition"
+          />
+        </div>
+
         <!-- Summary -->
         <div class="bg-white rounded-2xl p-5 shadow-sm">
           <div class="flex justify-between text-sm text-gray-500 mb-2">
@@ -118,12 +129,15 @@ import { ref } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import { Minus, Plus, X } from '@lucide/vue'
 import { useCartStore } from '@/stores/cart'
+import { useAuthStore } from '@/stores/auth'
 import { orderApi } from '@/api/order'
 
 const cartStore = useCartStore()
+const authStore = useAuthStore()
 const router = useRouter()
 const placing = ref(false)
 const orderError = ref('')
+const deliveryAddress = ref('')
 
 function formatPrice(amount) {
   return new Intl.NumberFormat('uz-UZ').format(amount) + ' UZS'
@@ -131,12 +145,13 @@ function formatPrice(amount) {
 
 async function placeOrder() {
   if (cartStore.items.length === 0) return
-  placing.value = true
   orderError.value = ''
 
   const restaurantId = cartStore.items[0]?.restaurantId
-  if (!restaurantId) { orderError.value = 'Cart error — missing restaurant.'; placing.value = false; return }
+  if (!restaurantId) { orderError.value = 'Cart error — missing restaurant.'; return }
+  if (!deliveryAddress.value.trim()) { orderError.value = 'Please enter a delivery address.'; return }
 
+  placing.value = true
   try {
     const items = cartStore.items.map(item => ({
       menuItemId: item.id,
@@ -145,7 +160,14 @@ async function placeOrder() {
       price: item.new_price ?? item.price,
     }))
 
-    const res = await orderApi.create({ restaurantId, items })
+    const res = await orderApi.create({
+      restaurantId,
+      restaurantName: cartStore.items[0]?.restaurantName ?? '',
+      currency: 'UZS',
+      deliveryAddress: deliveryAddress.value.trim(),
+      customerFullName: authStore.user?.name ?? '',
+      items,
+    })
 
     cartStore.clear()
     router.push(res.data?.id ? `/orders/${res.data.id}` : '/orders')

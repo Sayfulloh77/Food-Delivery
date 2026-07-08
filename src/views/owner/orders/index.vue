@@ -1,4 +1,4 @@
-<template>
+  <template>
   <div>
     <!-- Header row -->
     <div class="flex items-center justify-between mb-6 flex-wrap gap-3">
@@ -20,8 +20,13 @@
       </button>
     </div>
 
+    <!-- No restaurant yet -->
+    <div v-if="!loading && !restaurantId" class="text-center py-20 text-slate-600">
+      No restaurant found for your account yet — add one under Restaurants &amp; Menu first.
+    </div>
+
     <!-- Loading -->
-    <div v-if="loading" class="space-y-3 animate-pulse">
+    <div v-else-if="loading" class="space-y-3 animate-pulse">
       <div v-for="n in 5" :key="n" class="h-20 rounded-2xl" style="background:#0d1b35" />
     </div>
 
@@ -74,7 +79,7 @@
             <td class="px-4 py-3 text-xs text-slate-500 whitespace-nowrap">{{ formatDate(order.createdAt) }}</td>
             <td class="px-4 py-3">
               <div class="flex items-center gap-2">
-                <!-- Status transitions -->
+                <!-- Status transitions (owner only progresses up to READY — courier takes it from there) -->
                 <select
                   v-if="nextStatus(order.status)"
                   class="text-xs rounded-lg px-2 py-1.5 font-semibold outline-none transition-all"
@@ -86,19 +91,7 @@
                   <option v-for="s in nextStatus(order.status)" :key="s" :value="s">{{ s }}</option>
                 </select>
 
-                <!-- Assign courier -->
-                <button
-                  v-if="order.status === 'READY' && !order.courierName"
-                  class="text-xs px-3 py-1.5 rounded-lg font-bold text-black transition hover:opacity-85"
-                  style="background:#f97316"
-                  @click="openAssign(order)"
-                >
-                  Assign courier
-                </button>
-                <span v-else-if="order.status === 'READY'" class="text-xs text-slate-600">
-                  Courier: {{ order.courierName }}
-                  <button class="ml-1 text-orange-400 hover:underline" @click="openAssign(order)">Change</button>
-                </span>
+                <span v-if="order.status === 'READY'" class="text-xs text-slate-600">Waiting for courier…</span>
 
                 <!-- Cancel -->
                 <button
@@ -115,53 +108,6 @@
         </tbody>
       </table>
     </div>
-
-    <!-- Assign courier modal -->
-    <div v-if="assignModal" class="fixed inset-0 bg-black/70 z-50 flex items-center justify-center backdrop-blur-sm" @click.self="assignModal = null">
-      <div class="w-full max-w-sm rounded-2xl border p-6" style="background:#0d1b35;border-color:#1a2d4d">
-        <h3 class="text-white font-bold mb-4">Assign Courier</h3>
-        <p class="text-slate-500 text-xs mb-4">Order <span class="font-mono text-orange-400">#{{ assignModal.id.slice(0,8).toUpperCase() }}</span></p>
-
-        <div v-if="couriersLoading" class="text-slate-500 text-sm text-center py-4">Loading couriers…</div>
-
-        <div v-else-if="couriers.length === 0" class="text-slate-500 text-sm text-center py-4">No couriers available.</div>
-
-        <div v-else class="space-y-2 max-h-48 overflow-y-auto mb-4">
-          <label
-            v-for="courier in couriers"
-            :key="courier.id"
-            class="flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition"
-            :style="selectedCourier === courier.user_id ? 'background:rgba(249,115,22,0.1);border-color:#f97316' : 'background:#060d1c;border-color:#1a2d4d'"
-          >
-            <!-- The order service identifies couriers by their account user_id (same space as
-                 customerId, JWT user_id, etc.) — not the /couriers table's own row id. -->
-            <input type="radio" v-model="selectedCourier" :value="courier.user_id" class="hidden" />
-            <div class="w-8 h-8 rounded-full flex items-center justify-center text-black font-bold text-xs shrink-0" style="background:#f97316">
-              {{ (courier.user?.name ?? courier.name ?? 'C').charAt(0).toUpperCase() }}
-            </div>
-            <div>
-              <p class="text-white text-sm font-semibold">{{ courier.user?.name ?? courier.name ?? courier.id }}</p>
-              <p class="text-slate-600 text-xs">{{ courier.user?.email ?? '' }}</p>
-            </div>
-          </label>
-        </div>
-
-        <div class="flex gap-2">
-          <button class="flex-1 py-2.5 rounded-xl text-sm font-semibold text-slate-400 border transition hover:bg-white/5" style="border-color:#1a2d4d" @click="assignModal = null">
-            Cancel
-          </button>
-          <button
-            class="flex-1 py-2.5 rounded-xl text-sm font-bold text-black transition hover:opacity-85 disabled:opacity-40"
-            style="background:#f97316"
-            :disabled="!selectedCourier || assigning"
-            @click="doAssign"
-          >
-            {{ assigning ? 'Assigning…' : 'Assign' }}
-          </button>
-        </div>
-      </div>
-    </div>
-
   </div>
 </template>
 
@@ -169,31 +115,31 @@
 import { ref, computed, onMounted } from 'vue'
 import { RefreshCw } from '@lucide/vue'
 import { orderApi } from '@/api/order'
-import { couriersApi } from '@/api/users'
+import { restaurantApi } from '@/api/restaurant'
+import { useAuthStore } from '@/stores/auth'
+
+const authStore = useAuthStore()
 
 const STATUSES = ['CREATED','CONFIRMED','PREPARING','READY','DELIVERING','DELIVERED','CANCELLED']
 
+// Owner only drives the kitchen side of the lifecycle — once READY, the courier
+// pool (self-claim) takes it through DELIVERING/DELIVERED.
 const STATUS_TRANSITIONS = {
   CREATED: ['CONFIRMED', 'CANCELLED'],
   CONFIRMED: ['PREPARING', 'CANCELLED'],
   PREPARING: ['READY'],
-  READY: ['DELIVERING'],
-  DELIVERING: ['DELIVERED'],
+  READY: [],
+  DELIVERING: [],
   DELIVERED: [],
   CANCELLED: [],
 }
 
 const orders = ref([])
+const restaurantId = ref(null)
 const loading = ref(true)
 const error = ref(false)
 const filterStatus = ref('ALL')
 const updating = ref(null)
-
-const couriers = ref([])
-const couriersLoading = ref(false)
-const assignModal = ref(null)
-const selectedCourier = ref(null)
-const assigning = ref(false)
 
 const filtered = computed(() => {
   if (filterStatus.value === 'ALL') return orders.value
@@ -209,7 +155,12 @@ async function load() {
   loading.value = true
   error.value = false
   try {
-    const res = await orderApi.getAll()
+    if (!restaurantId.value) {
+      const resList = await restaurantApi.getByOwner(authStore.user?.id)
+      restaurantId.value = resList.data?.[0]?.id ?? null
+    }
+    if (!restaurantId.value) { orders.value = []; return }
+    const res = await orderApi.getByRestaurant(restaurantId.value)
     orders.value = (res.data ?? []).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
   } catch {
     error.value = true
@@ -226,35 +177,6 @@ async function changeStatus(order, status) {
     order.status = res.data.status ?? status
   } catch {}
   finally { updating.value = null }
-}
-
-async function openAssign(order) {
-  assignModal.value = order
-  selectedCourier.value = null
-  couriersLoading.value = true
-  try {
-    const res = await couriersApi.getAll()
-    couriers.value = res.data ?? []
-  } catch { couriers.value = [] }
-  finally { couriersLoading.value = false }
-}
-
-async function doAssign() {
-  if (!selectedCourier.value || !assignModal.value) return
-  const courier = couriers.value.find(c => c.user_id === selectedCourier.value)
-  assigning.value = true
-  try {
-    const res = await orderApi.assignCourier({
-      courierId: selectedCourier.value,
-      orderId: assignModal.value.id,
-      courierName: courier?.user?.name ?? courier?.name ?? '',
-      phoneNumber: courier?.user?.phone_number ?? courier?.phone_number ?? '',
-    })
-    const o = orders.value.find(o => o.id === assignModal.value.id)
-    if (o) { o.courierName = res.data.courierName ?? courier?.user?.name ?? courier?.name ?? ''; o.status = res.data.status ?? o.status }
-    assignModal.value = null
-  } catch {}
-  finally { assigning.value = false }
 }
 
 function formatPrice(val) {

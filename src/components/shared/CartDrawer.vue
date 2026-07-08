@@ -83,9 +83,9 @@
         <button
           class="block w-full py-3.5 text-black font-bold text-center rounded-2xl transition-all text-sm hover:opacity-90 active:scale-95"
           style="background:#f97316"
-          @click="checkout"
+          @click="goToCheckout"
         >
-          Place Order →
+          Go to Checkout →
         </button>
       </div>
 
@@ -97,7 +97,6 @@
 import { ShoppingCart, X, Plus, Minus } from '@lucide/vue'
 import { useCartStore } from '@/stores/cart'
 import { useAuthStore } from '@/stores/auth'
-import { orderApi } from '@/api/order'
 import { useRouter } from 'vue-router'
 
 const cartStore = useCartStore()
@@ -109,26 +108,11 @@ function formatPrice(val) {
   return Number(val).toLocaleString() + ' UZS'
 }
 
-async function checkout() {
-  if (!authStore.isLoggedIn) {
-    cartStore.closeDrawer()
-    router.push('/auth')
-    return
-  }
-  // Get restaurant id from first item
-  const restaurantId = cartStore.items[0]?.restaurantId
-  if (!restaurantId) return
-
-  try {
-    await orderApi.create({ restaurantId })
-    cartStore.clear()
-    cartStore.closeDrawer()
-    router.push('/orders')
-  } catch (e) {
-    // If order service fails, just navigate to orders page
-    cartStore.closeDrawer()
-    router.push('/orders')
-  }
+// The actual checkout (delivery address, order creation) lives on the /cart page —
+// this drawer is just a quick preview, so it hands off there instead of duplicating it.
+function goToCheckout() {
+  cartStore.closeDrawer()
+  router.push(authStore.isLoggedIn ? '/cart' : '/auth')
 }
 </script>
 

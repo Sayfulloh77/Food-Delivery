@@ -61,7 +61,7 @@
 <script setup>
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { UtensilsCrossed, LogOut } from '@lucide/vue'
+import { UtensilsCrossed, LogOut, ClipboardList } from '@lucide/vue'
 import { useAuthStore } from '@/stores/auth'
 import BrandLogo from '@/components/shared/BrandLogo.vue'
 
@@ -71,6 +71,7 @@ const authStore = useAuthStore()
 
 const navItems = [
   { to: '/owner/restaurants', label: 'Restaurants & Menu', icon: UtensilsCrossed },
+  { to: '/owner/orders', label: 'Orders', icon: ClipboardList },
 ]
 
 const isActive = (path) => route.path === path

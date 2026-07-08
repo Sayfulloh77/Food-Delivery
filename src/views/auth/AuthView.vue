@@ -148,6 +148,10 @@
               <input v-model="signUp.name" type="text" placeholder="John Doe" required class="auth-input" />
             </div>
             <div>
+              <label class="block text-xs font-medium text-slate-500 mb-1.5">Phone number</label>
+              <input v-model="signUp.phone" type="tel" placeholder="+998 90 123 45 67" required class="auth-input" />
+            </div>
+            <div>
               <label class="block text-xs font-medium text-slate-500 mb-1.5">Password</label>
               <div class="relative">
                 <input v-model="signUp.password" :type="showPass ? 'text' : 'password'" placeholder="Min. 6 characters" required maxlength="20" class="auth-input pr-10" :style="passwordTouched && !passwordValid ? 'border-color:#ef4444' : ''" @blur="passwordTouched = true" />
@@ -169,11 +173,39 @@
               </div>
               <p v-if="passwordMismatch" class="text-red-400 text-xs mt-1">Passwords do not match</p>
             </div>
+
+            <div v-if="clientRoles.length">
+              <label class="block text-xs font-medium text-slate-500 mb-1.5">I want to register as</label>
+              <div class="space-y-2">
+                <button
+                  v-for="role in clientRoles" :key="role.id" type="button"
+                  @click="selectedRoleId = role.id"
+                  class="w-full text-left p-3 rounded-xl border transition-all"
+                  :style="selectedRoleId === role.id ? 'background:rgba(249,115,22,0.1);border-color:#f97316' : 'background:#060d1c;border-color:#1a2d4d'"
+                >
+                  <p class="text-sm font-semibold" :style="selectedRoleId === role.id ? 'color:#f97316' : 'color:white'">{{ roleInfo(role).label }}</p>
+                  <p class="text-xs text-slate-500 mt-0.5">{{ roleInfo(role).description }}</p>
+                </button>
+              </div>
+            </div>
+
             <p v-if="error" class="text-red-400 text-xs">{{ error }}</p>
             <button type="submit" :disabled="loading || passwordMismatch || !passwordValid" class="auth-btn w-full py-3 mt-1" :class="(loading || passwordMismatch || !passwordValid) ? 'auth-btn-disabled' : ''">
               {{ loading ? 'Creating account…' : 'Create account' }}
             </button>
           </form>
+
+          <!-- ── SIGN UP step 4: pending approval ── -->
+          <div v-else-if="mode === 'pending'" class="text-center">
+            <div class="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-5" style="background:rgba(249,115,22,0.12);border:1px solid rgba(249,115,22,0.2)">
+              <ShieldCheck class="w-7 h-7" style="color:#f97316" />
+            </div>
+            <h2 class="text-xl font-bold text-white mb-1">Request submitted</h2>
+            <p class="text-sm text-slate-500 mb-7">
+              Your account is pending admin approval. Once an administrator activates it, you'll be able to log in with your email and password.
+            </p>
+            <button @click="switchMode('signin')" class="auth-btn w-full py-3">Got it</button>
+          </div>
 
         </div>
 
@@ -193,6 +225,7 @@ import { ref, computed, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { Eye, EyeOff, ShieldCheck, ArrowLeft, CheckCircle } from '@lucide/vue'
 import { authApi } from '@/api/auth'
+import { rolesApi } from '@/api/users'
 import { useAuthStore } from '@/stores/auth'
 import BrandLogo from '@/components/shared/BrandLogo.vue'
 
@@ -222,13 +255,32 @@ const showConfirmPass = ref(false)
 const passwordTouched = ref(false)
 
 const signIn = ref({ email: '', password: '' })
-const signUp = ref({ email: '', name: '', password: '', confirmPassword: '' })
+const signUp = ref({ email: '', name: '', phone: '', password: '', confirmPassword: '' })
 const otpToken = ref('')
 
-// /roles/for-client only lists roles a user can self-declare (courier, restaurant owner) and
-// /roles (which has the real id) requires an admin token we don't have yet during signup —
-// so until there's a role picker, every public signup is hardcoded to CUSTOMER.
-const CUSTOMER_ROLE_ID = 3
+// /roles/for-client is public and only lists roles a user is allowed to self-declare —
+// ADMIN/SUPERADMIN are never in this list, so the picker can't offer them even by accident.
+const clientRoles = ref([])
+const selectedRoleId = ref(null)
+
+const ROLE_LABELS = {
+  CUSTOMER: { label: 'Customer', description: 'Order food from restaurants near you.' },
+  COURIER: { label: 'Courier', description: 'Deliver orders and earn money.' },
+  RESTAURANT_OWNER: { label: 'Restaurant Owner', description: 'List your restaurant and manage orders.' },
+}
+function roleInfo(role) {
+  return ROLE_LABELS[role.name] ?? { label: role.name, description: '' }
+}
+
+async function loadClientRoles() {
+  try {
+    const res = await rolesApi.getForClient()
+    clientRoles.value = res.data ?? []
+    const customer = clientRoles.value.find(r => r.name === 'CUSTOMER')
+    selectedRoleId.value = customer?.id ?? clientRoles.value[0]?.id ?? null
+  } catch { clientRoles.value = [] }
+}
+loadClientRoles()
 
 const PASSWORD_RULE = /^(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{6,20}$/
 const passwordValid = computed(() => PASSWORD_RULE.test(signUp.value.password))
@@ -250,30 +302,53 @@ onUnmounted(() => clearInterval(cooldownTimer))
 
 function switchMode(target) { mode.value = target; error.value = ''; showPass.value = false; passwordTouched.value = false }
 
+// A request that never got a response (server down, no connection, timeout) is a
+// different problem than the server rejecting the request — don't blame the user's input for it.
+function authErrorMessage(e, fallback) {
+  if (!e?.response) return "Can't reach the server. Check your connection and try again."
+  return e.response.data?.message ?? fallback
+}
+
 async function handleSendOtp() {
   error.value = ''; loading.value = true
   try { await authApi.sentOtp(signUp.value.email); code.value = ['', '', '', '', '']; mode.value = 'otp'; startCooldown() }
-  catch (e) { error.value = e?.response?.data?.message ?? 'Failed to send code.' }
+  catch (e) { error.value = authErrorMessage(e, 'Failed to send code.') }
   finally { loading.value = false }
 }
 
 async function handleVerifyOtp() {
   error.value = ''; loading.value = true
   try { const res = await authApi.verifyOtp(signUp.value.email, codeValue.value); otpToken.value = res.data?.otpToken ?? res.data?.token ?? res.data; mode.value = 'details' }
-  catch (e) { error.value = e?.response?.data?.message ?? 'Invalid or expired code.' }
+  catch (e) { error.value = authErrorMessage(e, 'Invalid or expired code.') }
   finally { loading.value = false }
 }
 
 async function handleRegister() {
   passwordTouched.value = true
-  if (passwordMismatch.value || !passwordValid.value) return
+  if (passwordMismatch.value || !passwordValid.value || !selectedRoleId.value) return
   error.value = ''; loading.value = true
   try {
-    const res = await authApi.register({ name: signUp.value.name, email: signUp.value.email, password: signUp.value.password, role_id: CUSTOMER_ROLE_ID, otpToken: otpToken.value })
+    const role = clientRoles.value.find(r => r.id === selectedRoleId.value)
+    const res = await authApi.register({
+      name: signUp.value.name,
+      email: signUp.value.email,
+      phone_number: signUp.value.phone,
+      password: signUp.value.password,
+      role_id: selectedRoleId.value,
+      otpToken: otpToken.value,
+    })
+
+    // Courier / Restaurant Owner accounts need admin approval before they can log in —
+    // don't start a session for them, just show the pending screen.
+    if (role && role.name !== 'CUSTOMER') {
+      mode.value = 'pending'
+      return
+    }
+
     authStore.setTokens(res.data.access_token, res.data.refresh_token)
-    await Promise.all([authStore.fetchMe(), authStore.fetchOrderToken('CUSTOMER')])
+    await authStore.fetchMe()
     redirectByRole()
-  } catch (e) { error.value = e?.response?.data?.message ?? 'Registration failed.' }
+  } catch (e) { error.value = authErrorMessage(e, 'Registration failed.') }
   finally { loading.value = false }
 }
 
@@ -283,11 +358,8 @@ async function handleSignIn() {
     const res = await authApi.login(signIn.value.email, signIn.value.password)
     authStore.setTokens(res.data.access_token, res.data.refresh_token)
     await authStore.fetchMe()
-    const role = authStore.user?.role ?? authStore.user?.roles?.[0]
-    const orderRoleMap = { ADMIN: 'ADMIN', SUPERADMIN: 'ADMIN', RESTAURANT_OWNER: 'RESTAURANT_OWNER', COURIER: 'COURIER' }
-    await authStore.fetchOrderToken(orderRoleMap[role] ?? 'CUSTOMER')
     redirectByRole()
-  } catch (e) { error.value = e?.response?.data?.message ?? 'Invalid email or password.' }
+  } catch (e) { error.value = authErrorMessage(e, 'Invalid email or password.') }
   finally { loading.value = false }
 }
 

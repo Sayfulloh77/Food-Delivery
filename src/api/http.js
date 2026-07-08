@@ -4,8 +4,8 @@ let isRefreshing = false
 let failedQueue = []
 
 function processQueue(error, token = null) {
-  failedQueue.forEach((p) => (error ? p.reject(error) : p.resolve(token)))
-  failedQueue = []
+  failedQueue.forEach((p) => (error ? p.reject (error) : p.resolve(token)))
+  failedQueue = []  
 }
 
 function clearAndRedirect() {
@@ -25,17 +25,11 @@ const instances = {
   notification: axios.create({ baseURL: import.meta.env.VITE_NOTIFICATION_URL }),
 }
 
-// Each service uses a different JWT secret, so we use the right token per service:
-// - auth / notification / restaurant: use the main auth service accessToken
-// - order: uses its own token (orderToken) fetched separately after login
-function getTokenForService(name) {
-  if (name === 'order') return localStorage.getItem('orderToken')
-  return localStorage.getItem('accessToken')
-}
-
-Object.entries(instances).forEach(([name, instance]) => {
+// All four services validate the same auth-service JWT — there is no separate
+// per-service token to fetch.
+Object.values(instances).forEach((instance) => {
   instance.interceptors.request.use((config) => {
-    const token = getTokenForService(name)
+    const token = localStorage.getItem('accessToken')
     if (token) config.headers.Authorization = `Bearer ${token}`
     return config
   })
@@ -45,8 +39,11 @@ Object.entries(instances).forEach(([name, instance]) => {
     async (error) => {
       const original = error.config
 
-      // Only attempt refresh on 401, and not on the refresh call itself
-      if (error.response?.status === 401 && !original._retry) {
+      // Refresh on 401 everywhere, and also on 403 for the order service — it answers
+      // an expired/invalid token with 403 instead of 401, so treat both as "needs a refresh."
+      const status = error.response?.status
+      const shouldRefresh = status === 401 || (status === 403 && original?.baseURL === import.meta.env.VITE_ORDER_URL)
+      if (shouldRefresh && !original._retry) {
         const storedRefresh = localStorage.getItem('refreshToken')
 
         if (!storedRefresh) {

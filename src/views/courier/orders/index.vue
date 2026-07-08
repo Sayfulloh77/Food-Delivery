@@ -1,22 +1,35 @@
 <template>
   <div>
-    <!-- Header row -->
+    <!-- Pool switch -->
     <div class="flex items-center justify-between mb-6 flex-wrap gap-3">
-      <div class="flex items-center gap-3 flex-wrap">
+      <div class="flex gap-1 p-1 rounded-xl" style="background:#060d1c">
         <button
-          v-for="s in ['ALL', ...STATUSES]"
-          :key="s"
-          class="px-3 py-1.5 rounded-xl text-xs font-bold border transition-all"
-          :style="filterStatus === s
-            ? 'background:rgba(249,115,22,0.15);border-color:#f97316;color:#f97316'
-            : 'background:#060d1c;border-color:#1a2d4d;color:#64748b'"
-          @click="filterStatus = s"
+          v-for="t in [{ key: 'available', label: 'Available' }, { key: 'mine', label: 'My Deliveries' }]"
+          :key="t.key"
+          class="px-4 py-2 rounded-lg text-sm font-medium transition-all"
+          :style="pool === t.key ? 'background:#f97316;color:#000' : 'color:#64748b'"
+          @click="switchPool(t.key)"
         >
-          {{ s }}
+          {{ t.label }}
         </button>
       </div>
       <button class="flex items-center gap-1.5 text-sm font-semibold text-orange-400 hover:text-orange-300 transition" @click="load">
         <RefreshCw class="w-3.5 h-3.5" /> Refresh
+      </button>
+    </div>
+
+    <!-- Status filters (My Deliveries only) -->
+    <div v-if="pool === 'mine'" class="flex items-center gap-3 flex-wrap mb-6">
+      <button
+        v-for="s in ['ALL', ...STATUSES]"
+        :key="s"
+        class="px-3 py-1.5 rounded-xl text-xs font-bold border transition-all"
+        :style="filterStatus === s
+          ? 'background:rgba(249,115,22,0.15);border-color:#f97316;color:#f97316'
+          : 'background:#060d1c;border-color:#1a2d4d;color:#64748b'"
+        @click="filterStatus = s"
+      >
+        {{ s }}
       </button>
     </div>
 
@@ -27,13 +40,13 @@
 
     <!-- Error -->
     <div v-else-if="error" class="text-center py-20">
-      <p class="text-white font-bold">Failed to load your deliveries — backend may be unavailable</p>
+      <p class="text-white font-bold">Failed to load orders — backend may be unavailable</p>
       <button class="mt-4 px-5 py-2 rounded-xl text-black text-sm font-bold" style="background:#f97316" @click="load">Retry</button>
     </div>
 
     <!-- Empty -->
     <div v-else-if="filtered.length === 0" class="text-center py-20 text-slate-600">
-      No deliveries assigned to you right now.
+      {{ pool === 'available' ? 'No unclaimed orders right now — check back soon.' : 'No deliveries assigned to you right now.' }}
     </div>
 
     <!-- Cards -->
@@ -49,10 +62,10 @@
             <p class="font-mono text-xs text-slate-500">#{{ order.id.slice(0,8).toUpperCase() }}</p>
             <p class="text-white text-sm mt-1">
               <span v-for="(item, i) in order.items" :key="item.id">
-                {{ item.name }} × {{ item.qty }}<span v-if="i < order.items.length - 1">, </span>
+                {{ item.name }} x{{ item.qty }}<span v-if="i < order.items.length - 1">, </span>
               </span>
             </p>
-            <p class="text-slate-600 text-xs mt-1">{{ formatDate(order.createdAt) }}</p>
+            <p class="text-slate-600 text-xs mt-1">{{ order.restaurantName }}<span v-if="order.createdAt"> - {{ formatDate(order.createdAt) }}</span></p>
           </div>
           <div class="flex items-center gap-3">
             <span class="text-xs font-bold px-2.5 py-1 rounded-full" :style="statusStyle(order.status)">{{ order.status }}</span>
@@ -60,15 +73,37 @@
           </div>
         </div>
 
+        <div class="mt-3 pt-3 space-y-1" style="border-top:1px solid #1a2d4d">
+          <p v-if="order.restaurantAddress" class="text-xs text-slate-500">
+            <span class="text-slate-600">Pickup:</span>
+            <a v-if="isLink(order.restaurantAddress)" :href="order.restaurantAddress" target="_blank" rel="noopener" class="text-orange-400 hover:underline">Open map</a>
+            <span v-else>{{ order.restaurantAddress }}</span>
+          </p>
+          <p v-if="order.deliveryAddress" class="text-xs text-slate-500">
+            <span class="text-slate-600">Deliver to:</span>
+            <a v-if="isLink(order.deliveryAddress)" :href="order.deliveryAddress" target="_blank" rel="noopener" class="text-orange-400 hover:underline">Open map</a>
+            <span v-else>{{ order.deliveryAddress }}</span>
+          </p>
+        </div>
+
         <div class="mt-4 flex justify-end">
           <button
-            v-if="order.status === 'READY'"
+            v-if="pool === 'available'"
+            class="text-xs px-4 py-2 rounded-lg font-bold text-black transition hover:opacity-85 disabled:opacity-40"
+            style="background:#f97316"
+            :disabled="claiming === order.id"
+            @click="claim(order)"
+          >
+            {{ claiming === order.id ? 'Claiming...' : 'Claim delivery' }}
+          </button>
+          <button
+            v-else-if="order.status === 'READY'"
             class="text-xs px-4 py-2 rounded-lg font-bold text-black transition hover:opacity-85 disabled:opacity-40"
             style="background:#f97316"
             :disabled="updating === order.id"
             @click="changeStatus(order, 'DELIVERING')"
           >
-            {{ updating === order.id ? 'Updating…' : 'Start delivering' }}
+            {{ updating === order.id ? 'Updating...' : 'Start delivering' }}
           </button>
           <button
             v-else-if="order.status === 'DELIVERING'"
@@ -77,7 +112,7 @@
             :disabled="updating === order.id"
             @click="changeStatus(order, 'DELIVERED')"
           >
-            {{ updating === order.id ? 'Updating…' : 'Mark delivered' }}
+            {{ updating === order.id ? 'Updating...' : 'Mark delivered' }}
           </button>
         </div>
       </div>
@@ -86,34 +121,63 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed } from 'vue'
 import { RefreshCw } from '@lucide/vue'
 import { orderApi } from '@/api/order'
+import { useAuthStore } from '@/stores/auth'
+
+const authStore = useAuthStore()
 
 const STATUSES = ['READY', 'DELIVERING', 'DELIVERED']
 
+const pool = ref('available')
 const orders = ref([])
 const loading = ref(true)
 const error = ref(false)
 const filterStatus = ref('ALL')
 const updating = ref(null)
+const claiming = ref(null)
 
 const filtered = computed(() => {
-  if (filterStatus.value === 'ALL') return orders.value
+  if (pool.value === 'available' || filterStatus.value === 'ALL') return orders.value
   return orders.value.filter(o => o.status === filterStatus.value)
 })
+
+function switchPool(key) {
+  pool.value = key
+  load()
+}
 
 async function load() {
   loading.value = true
   error.value = false
   try {
-    const res = await orderApi.getAll()
-    orders.value = (res.data ?? []).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+    const res = pool.value === 'available' ? await orderApi.getAvailableForCourier() : await orderApi.getAll()
+    // The courier-specific endpoints return CourierResponse (keyed by orderId), while
+    // the generic /orders endpoint returns OrderResponse (keyed by id) — normalize to `id`.
+    const list = pool.value === 'available'
+      ? (res.data ?? []).map(o => ({ ...o, id: o.orderId }))
+      : (res.data ?? [])
+    orders.value = list.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
   } catch {
     error.value = true
   } finally {
     loading.value = false
   }
+}
+
+async function claim(order) {
+  claiming.value = order.id
+  try {
+    await orderApi.assignCourier({
+      courierId: authStore.user?.id,
+      orderId: order.id,
+      courierName: authStore.user?.name ?? '',
+      phoneNumber: authStore.user?.phone_number ?? '',
+    })
+    orders.value = orders.value.filter(o => o.id !== order.id)
+  } catch {}
+  finally { claiming.value = null }
 }
 
 async function changeStatus(order, status) {
@@ -123,6 +187,10 @@ async function changeStatus(order, status) {
     order.status = res.data.status ?? status
   } catch {}
   finally { updating.value = null }
+}
+
+function isLink(str) {
+  return /^https?:\/\//.test(str)
 }
 
 function formatPrice(val) {
@@ -143,5 +211,5 @@ function statusStyle(status) {
   return map[status] ?? 'background:#1a2d4d;color:#94a3b8'
 }
 
-onMounted(load)
+load()
 </script>

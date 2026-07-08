@@ -2,30 +2,13 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { decodeToken, isTokenExpired } from '@/utils/token'
 import { authApi } from '@/api/auth'
-import axios from 'axios'
 
 export const useAuthStore = defineStore('auth', () => {
   const accessToken = ref(localStorage.getItem('accessToken') || null)
   const refreshToken = ref(localStorage.getItem('refreshToken') || null)
-  const orderToken = ref(localStorage.getItem('orderToken') || null)
   const user = ref(accessToken.value ? decodeToken(accessToken.value) : null)
 
   const isLoggedIn = computed(() => !!accessToken.value && !isTokenExpired(accessToken.value))
-
-  // The order service uses its own JWT secret (separate from the auth service).
-  // After login we fetch a token from the order service using the user's role.
-  async function fetchOrderToken(role = 'CUSTOMER') {
-    try {
-      const res = await axios.get(`${import.meta.env.VITE_ORDER_URL}/auth/token?role=${role}`)
-      // The order service returns the token wrapped in an object (key name isn't fixed),
-      // not a bare string — grab the first string value instead of assuming a shape.
-      const token = typeof res.data === 'string' ? res.data : Object.values(res.data ?? {}).find(v => typeof v === 'string')
-      if (token) {
-        orderToken.value = token
-        localStorage.setItem('orderToken', token)
-      }
-    } catch {}
-  }
 
   function setTokens(access, refresh) {
     accessToken.value = access
@@ -53,7 +36,6 @@ export const useAuthStore = defineStore('auth', () => {
     }
     accessToken.value = null
     refreshToken.value = null
-    orderToken.value = null
     user.value = null
     localStorage.removeItem('accessToken')
     localStorage.removeItem('refreshToken')
@@ -73,5 +55,5 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  return { accessToken, refreshToken, orderToken, user, isLoggedIn, setTokens, fetchMe, fetchOrderToken, logout, refreshTokens }
+  return { accessToken, refreshToken, user, isLoggedIn, setTokens, fetchMe, logout, refreshTokens }
 })

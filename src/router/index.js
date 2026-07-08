@@ -26,6 +26,7 @@ const router = createRouter({
 
     // Restaurant Owner — restaurants, menu items, item categories, ads
     { path: '/owner/restaurants', meta: { roles: ['RESTAURANT_OWNER'] }, component: () => import('@/views/owner/menu/index.vue') },
+    { path: '/owner/orders', meta: { roles: ['RESTAURANT_OWNER'] }, component: () => import('@/views/owner/orders/index.vue') },
 
     // Courier — own assigned deliveries only
     { path: '/courier/orders', meta: { roles: ['COURIER'] }, component: () => import('@/views/courier/orders/index.vue') },
