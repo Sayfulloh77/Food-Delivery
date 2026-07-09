@@ -58,16 +58,6 @@
             <span class="text-slate-500 text-sm">Total</span>
             <span class="text-orange-400 font-black text-lg">{{ formatPrice(order.totalPrice) }}</span>
           </div>
-
-          <!-- Cancel button — only if CREATED -->
-          <button
-            v-if="order.status === 'CREATED'"
-            class="mt-3 w-full py-2 rounded-xl text-sm font-semibold text-red-400 border transition hover:bg-red-950/30"
-            style="border-color:#3f1010"
-            @click.stop.prevent="cancelOrder(order.id)"
-          >
-            Cancel order
-          </button>
         </RouterLink>
       </div>
 
@@ -96,14 +86,6 @@ async function load() {
   } finally {
     loading.value = false
   }
-}
-
-async function cancelOrder(id) {
-  try {
-    await orderApi.updateStatus(id, 'CANCELLED')
-    const o = orders.value.find(o => o.id === id)
-    if (o) o.status = 'CANCELLED'
-  } catch {}
 }
 
 function formatPrice(val) {

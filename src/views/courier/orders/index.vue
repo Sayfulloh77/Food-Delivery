@@ -4,7 +4,7 @@
     <div class="flex items-center justify-between mb-6 flex-wrap gap-3">
       <div class="flex gap-1 p-1 rounded-xl" style="background:#060d1c">
         <button
-          v-for="t in [{ key: 'available', label: 'Available' }, { key: 'mine', label: 'My Deliveries' }]"
+          v-for="t in [{ key: 'available', label: 'Available' }, { key: 'delivering', label: 'My Deliveries' }]"
           :key="t.key"
           class="px-4 py-2 rounded-lg text-sm font-medium transition-all"
           :style="pool === t.key ? 'background:#f97316;color:#000' : 'color:#64748b'"
@@ -15,21 +15,6 @@
       </div>
       <button class="flex items-center gap-1.5 text-sm font-semibold text-orange-400 hover:text-orange-300 transition" @click="load">
         <RefreshCw class="w-3.5 h-3.5" /> Refresh
-      </button>
-    </div>
-
-    <!-- Status filters (My Deliveries only) -->
-    <div v-if="pool === 'mine'" class="flex items-center gap-3 flex-wrap mb-6">
-      <button
-        v-for="s in ['ALL', ...STATUSES]"
-        :key="s"
-        class="px-3 py-1.5 rounded-xl text-xs font-bold border transition-all"
-        :style="filterStatus === s
-          ? 'background:rgba(249,115,22,0.15);border-color:#f97316;color:#f97316'
-          : 'background:#060d1c;border-color:#1a2d4d;color:#64748b'"
-        @click="filterStatus = s"
-      >
-        {{ s }}
       </button>
     </div>
 
@@ -45,14 +30,14 @@
     </div>
 
     <!-- Empty -->
-    <div v-else-if="filtered.length === 0" class="text-center py-20 text-slate-600">
-      {{ pool === 'available' ? 'No unclaimed orders right now — check back soon.' : 'No deliveries assigned to you right now.' }}
+    <div v-else-if="orders.length === 0" class="text-center py-20 text-slate-600">
+      {{ emptyMessage }}
     </div>
 
     <!-- Cards -->
     <div v-else class="space-y-3">
       <div
-        v-for="order in filtered"
+        v-for="order in orders"
         :key="order.id"
         class="rounded-2xl border p-5"
         style="background:#0d1b35;border-color:#1a2d4d"
@@ -128,20 +113,24 @@ import { useAuthStore } from '@/stores/auth'
 
 const authStore = useAuthStore()
 
-const STATUSES = ['READY', 'DELIVERING', 'DELIVERED']
+const POOL_FETCHERS = {
+  available: () => orderApi.getAvailableForCourier(),
+  delivering: () => orderApi.getDeliveringForCourier(),
+}
+
+const EMPTY_MESSAGES = {
+  available: 'No unclaimed orders right now — check back soon.',
+  delivering: 'No deliveries assigned to you right now.',
+}
 
 const pool = ref('available')
 const orders = ref([])
 const loading = ref(true)
 const error = ref(false)
-const filterStatus = ref('ALL')
 const updating = ref(null)
 const claiming = ref(null)
 
-const filtered = computed(() => {
-  if (pool.value === 'available' || filterStatus.value === 'ALL') return orders.value
-  return orders.value.filter(o => o.status === filterStatus.value)
-})
+const emptyMessage = computed(() => EMPTY_MESSAGES[pool.value])
 
 function switchPool(key) {
   pool.value = key
@@ -152,12 +141,9 @@ async function load() {
   loading.value = true
   error.value = false
   try {
-    const res = pool.value === 'available' ? await orderApi.getAvailableForCourier() : await orderApi.getAll()
-    // The courier-specific endpoints return CourierResponse (keyed by orderId), while
-    // the generic /orders endpoint returns OrderResponse (keyed by id) — normalize to `id`.
-    const list = pool.value === 'available'
-      ? (res.data ?? []).map(o => ({ ...o, id: o.orderId }))
-      : (res.data ?? [])
+    const res = await POOL_FETCHERS[pool.value]()
+    // Every courier-scoped endpoint returns CourierResponse (keyed by orderId) — normalize to `id`.
+    const list = (res.data ?? []).map(o => ({ ...o, id: o.orderId }))
     orders.value = list.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
   } catch {
     error.value = true
@@ -176,8 +162,10 @@ async function claim(order) {
       phoneNumber: authStore.user?.phone_number ?? '',
     })
     orders.value = orders.value.filter(o => o.id !== order.id)
-  } catch {}
-  finally { claiming.value = null }
+  } catch (err) {
+    error.value = true
+    console.error('Failed to claim order:', err)
+  } finally { claiming.value = null }
 }
 
 async function changeStatus(order, status) {
@@ -185,8 +173,10 @@ async function changeStatus(order, status) {
   try {
     const res = await orderApi.updateStatus(order.id, status)
     order.status = res.data.status ?? status
-  } catch {}
-  finally { updating.value = null }
+    if (status === 'DELIVERED') orders.value = orders.value.filter(o => o.id !== order.id)
+  } catch (err) {
+    console.error('Failed to update order status:', err)
+  } finally { updating.value = null }
 }
 
 function isLink(str) {
