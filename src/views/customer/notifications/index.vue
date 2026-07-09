@@ -13,6 +13,12 @@
         </button>
       </div>
 
+      <!-- Mark-all error -->
+      <div v-if="markAllError" class="mb-5 px-4 py-3 rounded-xl text-xs font-semibold flex items-center justify-between gap-3" style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.4);color:#f87171">
+        <span>{{ markAllError }}</span>
+        <button class="shrink-0 hover:opacity-70" @click="markAllError = ''">✕</button>
+      </div>
+
       <!-- Unread count chip -->
       <div v-if="unreadCount > 0" class="mb-5">
         <span class="text-xs font-bold px-3 py-1.5 rounded-full" style="background:rgba(249,115,22,0.15);color:#f97316;border:1px solid rgba(249,115,22,0.3)">
@@ -80,6 +86,7 @@ import { notificationApi } from '@/api/notification'
 const notifications = ref([])
 const loading = ref(true)
 const error = ref(false)
+const markAllError = ref('')
 
 const unreadCount = computed(() => notifications.value.filter((n) => !n.is_read).length)
 
@@ -105,8 +112,13 @@ async function markRead(n) {
 }
 
 async function markAllRead() {
-  const unread = notifications.value.filter((n) => !n.is_read)
-  await Promise.all(unread.map((n) => markRead(n)))
+  try {
+    await notificationApi.markAllRead()
+    notifications.value.forEach(n => { n.is_read = true })
+  } catch (err) {
+    markAllError.value = err?.response?.data?.message || err?.message || 'Could not mark all as read — please try again.'
+    console.error('Failed to mark all as read:', err)
+  }
 }
 
 function timeAgo(dateStr) {
