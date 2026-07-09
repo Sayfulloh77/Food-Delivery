@@ -1,9 +1,13 @@
-import axios from 'axios'
+import axios, { AxiosError, type InternalAxiosRequestConfig } from 'axios', 
+
+interface RetryableConfig extends InternalAxiosRequestConfig {
+  _retry?: boolean
+}
 
 let isRefreshing = false
-let failedQueue = []
+let failedQueue: { resolve: (token: string | null) => void; reject: (error: unknown) => void }[] = []
 
-function processQueue(error, token = null) {
+function processQueue(error: unknown, token: string | null = null) {
   failedQueue.forEach((p) => (error ? p.reject (error) : p.resolve(token)))
   failedQueue = []  
 }
@@ -36,8 +40,8 @@ Object.values(instances).forEach((instance) => {
 
   instance.interceptors.response.use(
     (res) => res,
-    async (error) => {
-      const original = error.config
+    async (error: AxiosError) => {
+      const original = error.config as RetryableConfig
 
       // Refresh on 401 everywhere, and also on 403 for the order service — it answers
       // an expired/invalid token with 403 instead of 401, so treat both as "needs a refresh."
@@ -82,7 +86,7 @@ Object.values(instances).forEach((instance) => {
           clearAndRedirect()
           return Promise.reject(refreshError)
         } finally {
-          isRefreshing = false
+          isRefreshing = false  
         }
       }
 
