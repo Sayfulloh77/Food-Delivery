@@ -18,6 +18,12 @@
       </button>
     </div>
 
+    <!-- Claim error -->
+    <div v-if="claimError" class="mb-4 px-4 py-3 rounded-xl text-xs font-semibold flex items-center justify-between gap-3" style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.4);color:#f87171">
+      <span>{{ claimError }}</span>
+      <button class="shrink-0 hover:opacity-70" @click="claimError = ''">✕</button>
+    </div>
+
     <!-- Loading -->
     <div v-if="loading" class="space-y-3 animate-pulse">
       <div v-for="n in 5" :key="n" class="h-20 rounded-2xl" style="background:#0d1b35" />
@@ -129,6 +135,7 @@ const loading = ref(true)
 const error = ref(false)
 const updating = ref(null)
 const claiming = ref(null)
+const claimError = ref('')
 
 const emptyMessage = computed(() => EMPTY_MESSAGES[pool.value])
 
@@ -154,16 +161,18 @@ async function load() {
 
 async function claim(order) {
   claiming.value = order.id
+  claimError.value = ''
   try {
     await orderApi.assignCourier({
-      courierId: authStore.user?.id,
+      // The JWT only carries `user_id`, never `id` — decodeToken() doesn't remap it.
+      courierId: authStore.user?.id ?? authStore.user?.user_id,
       orderId: order.id,
       courierName: authStore.user?.name ?? '',
       phoneNumber: authStore.user?.phone_number ?? '',
     })
     orders.value = orders.value.filter(o => o.id !== order.id)
   } catch (err) {
-    error.value = true
+    claimError.value = err?.response?.data?.message || err?.message || 'Could not claim this order — it may have been taken already.'
     console.error('Failed to claim order:', err)
   } finally { claiming.value = null }
 }
