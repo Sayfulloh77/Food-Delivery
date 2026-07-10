@@ -15,7 +15,7 @@
           {{ s }}
         </button>
       </div>
-      <button class="flex items-center gap-1.5 text-sm font-semibold text-orange-400 hover:text-orange-300 transition" @click="load">
+      <button class="flex items-center gap-1.5 text-sm font-semibold text-orange-400 hover:text-orange-300 transition" @click="() => refetch()">
         <RefreshCw class="w-3.5 h-3.5" /> Refresh
       </button>
     </div>
@@ -27,14 +27,14 @@
     </div>
 
     <!-- Loading -->
-    <div v-if="loading" class="space-y-3 animate-pulse">
+    <div v-if="isLoading" class="space-y-3 animate-pulse">
       <div v-for="n in 5" :key="n" class="h-20 rounded-2xl" style="background:#0d1b35" />
     </div>
 
     <!-- Error -->
-    <div v-else-if="error" class="text-center py-20">
+    <div v-else-if="isError" class="text-center py-20">
       <p class="text-white font-bold">Failed to load orders — backend may be unavailable</p>
-      <button class="mt-4 px-5 py-2 rounded-xl text-black text-sm font-bold" style="background:#f97316" @click="load">Retry</button>
+      <button class="mt-4 px-5 py-2 rounded-xl text-black text-sm font-bold" style="background:#f97316" @click="() => refetch()">Retry</button>
     </div>
 
     <!-- Empty -->
@@ -86,7 +86,7 @@
                   class="text-xs rounded-lg px-2 py-1.5 font-semibold outline-none transition-all"
                   style="background:#0d1b35;border:1px solid #1a2d4d;color:#f97316"
                   :disabled="updating === order.id"
-                  @change="changeStatus(order, $event.target.value)"
+                  @change="changeStatus(order, ($event.target as HTMLSelectElement).value as OrderStatus)"
                 >
                   <option value="">Move to…</option>
                   <option v-for="s in nextStatus(order.status)" :key="s" :value="s">{{ s }}</option>
@@ -116,16 +116,19 @@
   </div>
 </template>
 
-<script setup>
-import { ref, computed, onMounted } from 'vue'
+<script setup lang="ts">
+import { ref, computed } from 'vue'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/vue-query'
 import { RefreshCw } from '@lucide/vue'
-import { orderApi } from '@/api/order'
+import { orderApi, type Order } from '@/api/order'
+import { queryKeys } from '@/api/queryKeys'
+import type { OrderStatus } from '@/constants/orderStatus'
 
-const STATUSES = ['CREATED','CONFIRMED','PREPARING','READY','DELIVERING','DELIVERED','CANCELLED']
+const STATUSES: OrderStatus[] = ['CREATED','CONFIRMED','PREPARING','READY','DELIVERING','DELIVERED','CANCELLED']
 
 // Admin only drives the kitchen side of the lifecycle (mirrors the owner dashboard) —
 // once READY, assignment is the only way forward, so a courier is never skipped.
-const STATUS_TRANSITIONS = {
+const STATUS_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
   CREATED: ['CONFIRMED', 'CANCELLED'],
   CONFIRMED: ['PREPARING', 'CANCELLED'],
   PREPARING: ['READY'],
@@ -135,15 +138,22 @@ const STATUS_TRANSITIONS = {
   CANCELLED: [],
 }
 
-const orders = ref([])
-const loading = ref(true)
-const error = ref(false)
-const filterStatus = ref('ALL')
-const updating = ref(null)
+const queryClient = useQueryClient()
+const filterStatus = ref<'ALL' | OrderStatus>('ALL')
+const updating = ref<string | null>(null)
 const statusError = ref('')
 
-function messageFor(err) {
-  return err?.response?.data?.message || err?.message || 'Something went wrong — please try again.'
+const { data, isLoading, isError, refetch } = useQuery<Order[]>({
+  queryKey: queryKeys.orders.all,
+  queryFn: () => orderApi.getAll().then(res =>
+    (res.data ?? []).sort((a: Order, b: Order) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+  ),
+})
+const orders = computed(() => data.value ?? [])
+
+function messageFor(err: unknown) {
+  const e = err as { response?: { data?: { message?: string } }; message?: string }
+  return e?.response?.data?.message || e?.message || 'Something went wrong — please try again.'
 }
 
 const filtered = computed(() => {
@@ -151,47 +161,38 @@ const filtered = computed(() => {
   return orders.value.filter(o => o.status === filterStatus.value)
 })
 
-function nextStatus(status) {
+function nextStatus(status: OrderStatus) {
   const arr = STATUS_TRANSITIONS[status] ?? []
   return arr.length ? arr : null
 }
 
-async function load() {
-  loading.value = true
-  error.value = false
-  try {
-    const res = await orderApi.getAll()
-    orders.value = (res.data ?? []).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-  } catch {
-    error.value = true
-  } finally {
-    loading.value = false
-  }
-}
+const changeStatusMutation = useMutation({
+  mutationFn: ({ order, status }: { order: Order; status: OrderStatus }) => orderApi.updateStatus(order.id, status),
+  onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.orders.all }),
+  onError: (err, { order }) => {
+    statusError.value = `Order #${order.id.slice(0,8).toUpperCase()}: ${messageFor(err)}`
+  },
+  onSettled: () => { updating.value = null },
+})
 
-async function changeStatus(order, status) {
+function changeStatus(order: Order, status: OrderStatus | '') {
   if (!status) return
   updating.value = order.id
   statusError.value = ''
-  try {
-    const res = await orderApi.updateStatus(order.id, status)
-    order.status = res.data.status ?? status
-  } catch (err) {
-    statusError.value = `Order #${order.id.slice(0,8).toUpperCase()}: ${messageFor(err)}`
-  } finally { updating.value = null }
+  changeStatusMutation.mutate({ order, status })
 }
 
-function formatPrice(val) {
+function formatPrice(val: number | string | undefined) {
   return Number(val || 0).toLocaleString() + ' UZS'
 }
 
-function formatDate(str) {
+function formatDate(str: string | undefined) {
   if (!str) return ''
   return new Date(str).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 
-function statusStyle(status) {
-  const map = {
+function statusStyle(status: OrderStatus) {
+  const map: Record<OrderStatus, string> = {
     CREATED: 'background:rgba(59,130,246,0.15);color:#60a5fa',
     CONFIRMED: 'background:rgba(249,115,22,0.15);color:#fb923c',
     PREPARING: 'background:rgba(234,179,8,0.15);color:#facc15',
@@ -202,6 +203,4 @@ function statusStyle(status) {
   }
   return map[status] ?? 'background:#1a2d4d;color:#94a3b8'
 }
-
-onMounted(load)
 </script>

@@ -12,7 +12,7 @@
   </RouterLink>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { UtensilsCrossed } from '@lucide/vue'
 
 defineProps({

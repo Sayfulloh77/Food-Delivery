@@ -5,14 +5,14 @@
       <h1 class="text-2xl font-extrabold text-white mb-8">My Orders</h1>
 
       <!-- Loading -->
-      <div v-if="loading" class="space-y-3 animate-pulse">
+      <div v-if="isLoading" class="space-y-3 animate-pulse">
         <div v-for="n in 4" :key="n" class="h-28 rounded-2xl" style="background:#0d1b35" />
       </div>
 
       <!-- Error -->
-      <div v-else-if="error" class="text-center py-20">
+      <div v-else-if="isError" class="text-center py-20">
         <p class="text-white font-bold">Failed to load orders</p>
-        <button class="mt-4 px-5 py-2 rounded-xl text-black text-sm font-bold" style="background:#f97316" @click="load">Retry</button>
+        <button class="mt-4 px-5 py-2 rounded-xl text-black text-sm font-bold" style="background:#f97316" @click="() => refetch()">Retry</button>
       </div>
 
       <!-- Empty -->
@@ -49,7 +49,7 @@
           <div class="mt-4 space-y-2">
             <div v-for="item in order.items" :key="item.id" class="flex items-center justify-between text-sm">
               <span class="text-slate-300">{{ item.name }} <span class="text-slate-600">× {{ item.qty }}</span></span>
-              <span class="text-orange-400 font-semibold">{{ formatPrice(item.price * item.qty) }}</span>
+              <span class="text-orange-400 font-semibold">{{ formatPrice(Number(item.price) * item.qty) }}</span>
             </div>
           </div>
 
@@ -65,38 +65,28 @@
   </div>
 </template>
 
-<script setup>
-import { ref, onMounted } from 'vue'
+<script setup lang="ts">
+import { computed } from 'vue'
+import { useQuery } from '@tanstack/vue-query'
 import { RouterLink } from 'vue-router'
 import { orderApi } from '@/api/order'
+import { queryKeys } from '@/api/queryKeys'
 import { orderStatusStyle } from '@/constants/orderStatus'
 
-const orders = ref([])
-const loading = ref(true)
-const error = ref(false)
+const { data, isLoading, isError, refetch } = useQuery({
+  queryKey: queryKeys.orders.all,
+  queryFn: () => orderApi.getAll().then(res => res.data ?? []),
+})
 
-async function load() {
-  loading.value = true
-  error.value = false
-  try {
-    const res = await orderApi.getAll()
-    orders.value = res.data ?? []
-  } catch {
-    error.value = true
-  } finally {
-    loading.value = false
-  }
-}
+const orders = computed(() => data.value ?? [])
 
-function formatPrice(val) {
+function formatPrice(val: number | string | undefined) {
   if (!val) return '0'
   return Number(val).toLocaleString() + ' UZS'
 }
 
-function formatDate(str) {
+function formatDate(str: string | undefined) {
   if (!str) return ''
   return new Date(str).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
-
-onMounted(load)
 </script>

@@ -1,6 +1,13 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 
+declare module 'vue-router' {
+  interface RouteMeta {
+    requiresAuth?: boolean
+    roles?: string[]
+  }
+}
+
 const router = createRouter({
   history: createWebHistory(),
   routes: [
@@ -39,7 +46,7 @@ const router = createRouter({
 // Runs before every page navigation
 router.beforeEach(async (to) => {
   const authStore = useAuthStore()
-  const requiresRole = to.meta.roles?.length > 0
+  const requiresRole = (to.meta.roles?.length ?? 0) > 0
 
   // Access token may have expired since the last navigation — try a
   // silent refresh before treating the user as logged out.
@@ -64,7 +71,7 @@ router.beforeEach(async (to) => {
     // JWT payload might have role as string or inside roles array
     const role = authStore.user?.role ?? authStore.user?.roles?.[0]
 
-    if (!to.meta.roles.includes(role)) return '/forbidden'
+    if (!role || !to.meta.roles?.includes(role)) return '/forbidden'
   }
 
   return true

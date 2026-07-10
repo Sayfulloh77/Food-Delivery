@@ -1,18 +1,18 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { decodeToken, isTokenExpired } from '@/utils/token'
+import { decodeToken, isTokenExpired, type JwtPayload } from '@/utils/token'
 import { authApi } from '@/api/auth'
 
 export const useAuthStore = defineStore('auth', () => {
-  const accessToken = ref(localStorage.getItem('accessToken') || null)
-  const refreshToken = ref(localStorage.getItem('refreshToken') || null)
-  const user = ref(accessToken.value ? decodeToken(accessToken.value) : null)
+  const accessToken = ref<string | null>(localStorage.getItem('accessToken') || null)
+  const refreshToken = ref<string | null>(localStorage.getItem('refreshToken') || null)
+  const user = ref<JwtPayload | null>(accessToken.value ? decodeToken(accessToken.value) : null)
 
   const isLoggedIn = computed(() => !!accessToken.value && !isTokenExpired(accessToken.value))
 
-  function setTokens(access, refresh) {
+  function setTokens(access: string, refresh?: string | null) {
     accessToken.value = access
-    refreshToken.value = refresh
+    refreshToken.value = refresh ?? null
     user.value = decodeToken(access)
     localStorage.setItem('accessToken', access)
     if (refresh) localStorage.setItem('refreshToken', refresh)
@@ -45,7 +45,8 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function refreshTokens() {
     try {
-      const res = await authApi.refresh(user.value?.id, refreshToken.value)
+      if (!user.value?.id || !refreshToken.value) throw new Error('missing refresh context')
+      const res = await authApi.refresh(user.value.id, refreshToken.value)
       const { access_token, refresh_token } = res.data
       setTokens(access_token, refresh_token)
       return access_token

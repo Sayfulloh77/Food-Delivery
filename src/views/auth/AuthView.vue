@@ -114,7 +114,7 @@
             <div class="flex justify-center gap-2 mb-6">
               <input
                 v-for="(_, i) in code" :key="i"
-                :ref="el => { if (el) codeRefs[i] = el }"
+                :ref="(el) => { if (el) codeRefs[i] = el as HTMLInputElement }"
                 v-model="code[i]" type="text" maxlength="1" inputmode="numeric"
                 @input="onCodeInput(i)" @keydown.backspace="onBackspace(i)" @paste.prevent="onPaste"
                 class="w-11 h-12 text-center text-lg font-bold rounded-xl outline-none transition-all"
@@ -220,7 +220,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref, computed, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { Eye, EyeOff, ShieldCheck, ArrowLeft, CheckCircle } from '@lucide/vue'
@@ -228,6 +228,13 @@ import { authApi } from '@/api/auth'
 import { rolesApi } from '@/api/users'
 import { useAuthStore } from '@/stores/auth'
 import BrandLogo from '@/components/shared/BrandLogo.vue'
+
+type Mode = 'signin' | 'signup' | 'otp' | 'details' | 'pending'
+
+interface ClientRole {
+  id: number
+  name: string
+}
 
 const router = useRouter()
 const route = useRoute()
@@ -247,7 +254,7 @@ function redirectByRole() {
   }
 }
 
-const mode = ref('signin')
+const mode = ref<Mode>('signin')
 const loading = ref(false)
 const error = ref('')
 const showPass = ref(false)
@@ -260,15 +267,15 @@ const otpToken = ref('')
 
 // /roles/for-client is public and only lists roles a user is allowed to self-declare —
 // ADMIN/SUPERADMIN are never in this list, so the picker can't offer them even by accident.
-const clientRoles = ref([])
-const selectedRoleId = ref(null)
+const clientRoles = ref<ClientRole[]>([])
+const selectedRoleId = ref<number | null>(null)
 
-const ROLE_LABELS = {
+const ROLE_LABELS: Record<string, { label: string; description: string }> = {
   CUSTOMER: { label: 'Customer', description: 'Order food from restaurants near you.' },
   COURIER: { label: 'Courier', description: 'Deliver orders and earn money.' },
   RESTAURANT_OWNER: { label: 'Restaurant Owner', description: 'List your restaurant and manage orders.' },
 }
-function roleInfo(role) {
+function roleInfo(role: ClientRole) {
   return ROLE_LABELS[role.name] ?? { label: role.name, description: '' }
 }
 
@@ -289,24 +296,25 @@ const passwordMismatch = computed(() =>
 )
 
 const code = ref(['', '', '', '', ''])
-const codeRefs = ref([])
+const codeRefs = ref<HTMLInputElement[]>([])
 const codeValue = computed(() => code.value.join(''))
 const resendCooldown = ref(0)
-let cooldownTimer = null
+let cooldownTimer: ReturnType<typeof setInterval> | null = null
 
 function startCooldown() {
   resendCooldown.value = 60
-  cooldownTimer = setInterval(() => { if (--resendCooldown.value <= 0) clearInterval(cooldownTimer) }, 1000)
+  cooldownTimer = setInterval(() => { if (--resendCooldown.value <= 0 && cooldownTimer) clearInterval(cooldownTimer) }, 1000)
 }
-onUnmounted(() => clearInterval(cooldownTimer))
+onUnmounted(() => { if (cooldownTimer) clearInterval(cooldownTimer) })
 
-function switchMode(target) { mode.value = target; error.value = ''; showPass.value = false; passwordTouched.value = false }
+function switchMode(target: Mode) { mode.value = target; error.value = ''; showPass.value = false; passwordTouched.value = false }
 
 // A request that never got a response (server down, no connection, timeout) is a
 // different problem than the server rejecting the request — don't blame the user's input for it.
-function authErrorMessage(e, fallback) {
-  if (!e?.response) return "Can't reach the server. Check your connection and try again."
-  return e.response.data?.message ?? fallback
+function authErrorMessage(e: unknown, fallback: string) {
+  const err = e as { response?: { data?: { message?: string } } }
+  if (!err?.response) return "Can't reach the server. Check your connection and try again."
+  return err.response.data?.message ?? fallback
 }
 
 async function handleSendOtp() {
@@ -318,7 +326,11 @@ async function handleSendOtp() {
 
 async function handleVerifyOtp() {
   error.value = ''; loading.value = true
-  try { const res = await authApi.verifyOtp(signUp.value.email, codeValue.value); otpToken.value = res.data?.otpToken ?? res.data?.token ?? res.data; mode.value = 'details' }
+  try {
+    const res = await authApi.verifyOtp(signUp.value.email, codeValue.value)
+    otpToken.value = res.data?.otpToken ?? res.data?.token ?? res.data
+    mode.value = 'details'
+  }
   catch (e) { error.value = authErrorMessage(e, 'Invalid or expired code.') }
   finally { loading.value = false }
 }
@@ -328,13 +340,14 @@ async function handleRegister() {
   if (passwordMismatch.value || !passwordValid.value || !selectedRoleId.value) return
   error.value = ''; loading.value = true
   try {
-    const role = clientRoles.value.find(r => r.id === selectedRoleId.value)
+    const roleId = selectedRoleId.value
+    const role = clientRoles.value.find(r => r.id === roleId)
     const res = await authApi.register({
       name: signUp.value.name,
       email: signUp.value.email,
       phone_number: signUp.value.phone,
       password: signUp.value.password,
-      role_id: selectedRoleId.value,
+      role_id: roleId,
       otpToken: otpToken.value,
     })
 
@@ -369,14 +382,14 @@ async function handleResend() {
   await handleSendOtp()
 }
 
-function onCodeInput(index) {
+function onCodeInput(index: number) {
   const val = code.value[index]
   if (val && !/^\d$/.test(val)) { code.value[index] = ''; return }
   if (val && index < 4) codeRefs.value[index + 1]?.focus()
 }
-function onBackspace(index) { if (!code.value[index] && index > 0) codeRefs.value[index - 1]?.focus() }
-function onPaste(e) {
-  const text = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 5)
+function onBackspace(index: number) { if (!code.value[index] && index > 0) codeRefs.value[index - 1]?.focus() }
+function onPaste(e: ClipboardEvent) {
+  const text = (e.clipboardData?.getData('text') ?? '').replace(/\D/g, '').slice(0, 5)
   text.split('').forEach((char, i) => { code.value[i] = char })
   codeRefs.value[Math.min(text.length, 4)]?.focus()
 }

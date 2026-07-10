@@ -4,25 +4,26 @@ import { onMounted, onUnmounted } from 'vue'
 // resolves (post-mount), so a one-time querySelectorAll at mount would
 // miss them. A MutationObserver picks up elements added later too.
 export function useReveal(selector = '.reveal') {
-  let observer = null
-  let mutationObserver = null
+  let observer: IntersectionObserver | null = null
+  let mutationObserver: MutationObserver | null = null
 
   onMounted(() => {
-    observer = new IntersectionObserver(
+    const io = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
           if (entry.isIntersecting) {
             entry.target.classList.add('visible')
-            observer.unobserve(entry.target)
+            io.unobserve(entry.target)
           }
         })
       },
       { threshold: 0.12 }
     )
+    observer = io
 
     const observeAll = () => {
       document.querySelectorAll(selector).forEach((el) => {
-        if (!el.classList.contains('visible')) observer.observe(el)
+        if (!el.classList.contains('visible')) io.observe(el)
       })
     }
 

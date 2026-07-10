@@ -5,15 +5,15 @@
       <RouterLink to="/orders" class="text-slate-500 text-sm hover:text-slate-300 transition">&larr; Back to orders</RouterLink>
 
       <!-- Loading -->
-      <div v-if="loading" class="mt-6 space-y-3 animate-pulse">
+      <div v-if="isLoading" class="mt-6 space-y-3 animate-pulse">
         <div class="h-8 w-1/2 rounded" style="background:#0d1b35" />
         <div class="h-40 rounded-2xl" style="background:#0d1b35" />
       </div>
 
       <!-- Error -->
-      <div v-else-if="error" class="text-center py-24">
+      <div v-else-if="isError" class="text-center py-24">
         <p class="text-white font-bold">Failed to load order</p>
-        <button class="mt-4 px-5 py-2 rounded-xl text-black text-sm font-bold" style="background:#f97316" @click="load">Retry</button>
+        <button class="mt-4 px-5 py-2 rounded-xl text-black text-sm font-bold" style="background:#f97316" @click="() => refetch()">Retry</button>
       </div>
 
       <template v-else-if="order">
@@ -63,7 +63,7 @@
         <div class="mt-6 rounded-2xl border p-5" style="background:#0d1b35;border-color:#1a2d4d">
           <div v-for="item in order.items" :key="item.id" class="flex items-center justify-between text-sm py-1.5">
             <span class="text-slate-300">{{ item.name }} <span class="text-slate-600">&times; {{ item.qty }}</span></span>
-            <span class="text-orange-400 font-semibold">{{ formatPrice(item.price * item.qty) }}</span>
+            <span class="text-orange-400 font-semibold">{{ formatPrice(Number(item.price) * item.qty) }}</span>
           </div>
           <div class="mt-3 pt-3 flex items-center justify-between" style="border-top:1px solid #1a2d4d">
             <span class="text-slate-500 text-sm">Total</span>
@@ -76,51 +76,36 @@
   </div>
 </template>
 
-<script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+<script setup lang="ts">
+import { computed } from 'vue'
+import { useQuery } from '@tanstack/vue-query'
 import { useRoute, RouterLink } from 'vue-router'
-import { orderApi } from '@/api/order'
+import { orderApi, type Order } from '@/api/order'
+import { queryKeys } from '@/api/queryKeys'
 import { ORDER_STEPS, ORDER_STATUS_LABEL, orderStatusStyle } from '@/constants/orderStatus'
 
 const route = useRoute()
-const order = ref(null)
-const loading = ref(true)
-const error = ref(false)
-let pollTimer = null
+const orderId = computed(() => route.params.id as string)
 
-const stepIndex = computed(() => order.value ? ORDER_STEPS.indexOf(order.value.status) : -1)
-
-async function load() {
-  error.value = false
-  try {
-    const res = await orderApi.getById(route.params.id)
-    order.value = res.data
-    if (['DELIVERED', 'CANCELLED'].includes(order.value?.status)) stopPolling()
-  } catch {
-    error.value = true
-  } finally {
-    loading.value = false
-  }
-}
-
-function stopPolling() {
-  if (pollTimer) clearInterval(pollTimer)
-  pollTimer = null
-}
-
-onMounted(() => {
-  load()
-  pollTimer = setInterval(load, 5000)
+const { data: order, isLoading, isError, refetch } = useQuery<Order>({
+  queryKey: computed(() => queryKeys.orders.detail(orderId.value)),
+  queryFn: () => orderApi.getById(orderId.value).then(res => res.data),
+  // Stop polling once the order reaches a terminal state — no point hammering
+  // the backend for an order that will never change again.
+  refetchInterval: (query) => {
+    const status = query.state.data?.status
+    return status === 'DELIVERED' || status === 'CANCELLED' ? false : 5000
+  },
 })
 
-onUnmounted(stopPolling)
+const stepIndex = computed(() => order.value ? ORDER_STEPS.indexOf(order.value.status as typeof ORDER_STEPS[number]) : -1)
 
-function formatPrice(val) {
+function formatPrice(val: number | string | undefined) {
   if (!val) return '0'
   return Number(val).toLocaleString() + ' UZS'
 }
 
-function formatDate(str) {
+function formatDate(str: string | undefined) {
   if (!str) return ''
   return new Date(str).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
 }

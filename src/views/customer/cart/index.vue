@@ -43,7 +43,7 @@
               <p class="text-gray-400 text-xs mt-0.5">{{ item.restaurantName }}</p>
               <div class="flex items-center justify-between mt-2">
                 <span class="font-bold text-gray-900 text-sm">
-                  {{ formatPrice((item.new_price ?? item.price) * item.qty) }}
+                  {{ formatPrice(Number(item.new_price ?? item.price) * item.qty) }}
                 </span>
                 <!-- Qty controls -->
                 <div class="flex items-center gap-2">
@@ -124,35 +124,33 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref } from 'vue'
+import { useMutation, useQueryClient } from '@tanstack/vue-query'
 import { RouterLink, useRouter } from 'vue-router'
 import { Minus, Plus, X } from '@lucide/vue'
 import { useCartStore } from '@/stores/cart'
 import { useAuthStore } from '@/stores/auth'
 import { orderApi } from '@/api/order'
+import { queryKeys } from '@/api/queryKeys'
 
 const cartStore = useCartStore()
 const authStore = useAuthStore()
 const router = useRouter()
-const placing = ref(false)
+const queryClient = useQueryClient()
 const orderError = ref('')
 const deliveryAddress = ref('')
 
-function formatPrice(amount) {
+function formatPrice(amount: number) {
   return new Intl.NumberFormat('uz-UZ').format(amount) + ' UZS'
 }
 
-async function placeOrder() {
-  if (cartStore.items.length === 0) return
-  orderError.value = ''
+const placeOrderMutation = useMutation({
+  mutationFn: () => {
+    const restaurantId = cartStore.items[0]?.restaurantId
+    if (!restaurantId) throw new Error('Cart error — missing restaurant.')
+    if (!deliveryAddress.value.trim()) throw new Error('Please enter a delivery address.')
 
-  const restaurantId = cartStore.items[0]?.restaurantId
-  if (!restaurantId) { orderError.value = 'Cart error — missing restaurant.'; return }
-  if (!deliveryAddress.value.trim()) { orderError.value = 'Please enter a delivery address.'; return }
-
-  placing.value = true
-  try {
     const items = cartStore.items.map(item => ({
       menuItemId: item.id,
       name: item.name,
@@ -160,7 +158,7 @@ async function placeOrder() {
       price: item.new_price ?? item.price,
     }))
 
-    const res = await orderApi.create({
+    return orderApi.create({
       restaurantId,
       restaurantName: cartStore.items[0]?.restaurantName ?? '',
       currency: 'UZS',
@@ -168,13 +166,22 @@ async function placeOrder() {
       customerFullName: authStore.user?.name ?? '',
       items,
     })
-
+  },
+  onSuccess: (res) => {
+    queryClient.invalidateQueries({ queryKey: queryKeys.orders.all })
     cartStore.clear()
     router.push(res.data?.id ? `/orders/${res.data.id}` : '/orders')
-  } catch {
-    orderError.value = 'Failed to place order. Please try again.'
-  } finally {
-    placing.value = false
-  }
+  },
+  onError: (err) => {
+    orderError.value = err instanceof Error ? err.message : 'Failed to place order. Please try again.'
+  },
+})
+
+const placing = placeOrderMutation.isPending
+
+function placeOrder() {
+  if (cartStore.items.length === 0) return
+  orderError.value = ''
+  placeOrderMutation.mutate()
 }
 </script>

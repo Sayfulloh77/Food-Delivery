@@ -13,7 +13,7 @@
           {{ t.label }}
         </button>
       </div>
-      <button class="flex items-center gap-1.5 text-sm font-semibold text-orange-400 hover:text-orange-300 transition" @click="load">
+      <button class="flex items-center gap-1.5 text-sm font-semibold text-orange-400 hover:text-orange-300 transition" @click="() => refetch()">
         <RefreshCw class="w-3.5 h-3.5" /> Refresh
       </button>
     </div>
@@ -25,14 +25,14 @@
     </div>
 
     <!-- Loading -->
-    <div v-if="loading" class="space-y-3 animate-pulse">
+    <div v-if="isLoading" class="space-y-3 animate-pulse">
       <div v-for="n in 5" :key="n" class="h-20 rounded-2xl" style="background:#0d1b35" />
     </div>
 
     <!-- Error -->
-    <div v-else-if="error" class="text-center py-20">
+    <div v-else-if="isError" class="text-center py-20">
       <p class="text-white font-bold">Failed to load orders — backend may be unavailable</p>
-      <button class="mt-4 px-5 py-2 rounded-xl text-black text-sm font-bold" style="background:#f97316" @click="load">Retry</button>
+      <button class="mt-4 px-5 py-2 rounded-xl text-black text-sm font-bold" style="background:#f97316" @click="() => refetch()">Retry</button>
     </div>
 
     <!-- Empty -->
@@ -111,104 +111,112 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref, computed } from 'vue'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/vue-query'
 import { RefreshCw } from '@lucide/vue'
-import { orderApi } from '@/api/order'
+import { orderApi, type Order } from '@/api/order'
 import { useAuthStore } from '@/stores/auth'
+import { queryKeys } from '@/api/queryKeys'
+import type { OrderStatus } from '@/constants/orderStatus'
 
 const authStore = useAuthStore()
+const queryClient = useQueryClient()
 
-const POOL_FETCHERS = {
+type Pool = 'available' | 'delivering'
+
+const POOL_FETCHERS: Record<Pool, () => ReturnType<typeof orderApi.getAvailableForCourier>> = {
   available: () => orderApi.getAvailableForCourier(),
   delivering: () => orderApi.getDeliveringForCourier(),
 }
 
-const EMPTY_MESSAGES = {
+const EMPTY_MESSAGES: Record<Pool, string> = {
   available: 'No unclaimed orders right now — check back soon.',
   delivering: 'No deliveries assigned to you right now.',
 }
 
-const pool = ref('available')
-const orders = ref([])
-const loading = ref(true)
-const error = ref(false)
-const updating = ref(null)
-const claiming = ref(null)
+const pool = ref<Pool>('available')
+const updating = ref<string | null>(null)
+const claiming = ref<string | null>(null)
 const claimError = ref('')
 
 const emptyMessage = computed(() => EMPTY_MESSAGES[pool.value])
 
-function switchPool(key) {
+function switchPool(key: Pool) {
   pool.value = key
-  load()
 }
 
-async function load() {
-  loading.value = true
-  error.value = false
-  try {
-    const res = await POOL_FETCHERS[pool.value]()
+const { data, isLoading, isError, refetch } = useQuery<Order[]>({
+  queryKey: computed(() => queryKeys.orders.courierPool(pool.value)),
+  queryFn: () => POOL_FETCHERS[pool.value]().then(res => {
     // Every courier-scoped endpoint returns CourierResponse (keyed by orderId) — normalize to `id`.
-    const list = (res.data ?? []).map(o => ({ ...o, id: o.orderId }))
-    orders.value = list.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-  } catch {
-    error.value = true
-  } finally {
-    loading.value = false
-  }
-}
+    const list = (res.data ?? []).map((o: Order & { orderId: string }) => ({ ...o, id: o.orderId }))
+    return list.sort((a: Order, b: Order) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+  }),
+})
+const orders = computed(() => data.value ?? [])
 
-async function claim(order) {
-  claiming.value = order.id
-  claimError.value = ''
-  try {
-    await orderApi.assignCourier({
+const claimMutation = useMutation({
+  mutationFn: (order: Order) => {
+    const courierId = authStore.user?.id ?? authStore.user?.user_id
+    if (!courierId) throw new Error('Missing courier id')
+    return orderApi.assignCourier({
       // The JWT only carries `user_id`, never `id` — decodeToken() doesn't remap it.
-      courierId: authStore.user?.id ?? authStore.user?.user_id,
+      courierId,
       orderId: order.id,
       courierName: authStore.user?.name ?? '',
       phoneNumber: authStore.user?.phone_number ?? '',
     })
-    orders.value = orders.value.filter(o => o.id !== order.id)
-  } catch (err) {
-    claimError.value = err?.response?.data?.message || err?.message || 'Could not claim this order — it may have been taken already.'
+  },
+  onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.orders.courierPool('available') }),
+  onError: (err) => {
+    const e = err as { response?: { data?: { message?: string } }; message?: string }
+    claimError.value = e?.response?.data?.message || e?.message || 'Could not claim this order — it may have been taken already.'
     console.error('Failed to claim order:', err)
-  } finally { claiming.value = null }
+  },
+  onSettled: () => { claiming.value = null },
+})
+
+function claim(order: Order) {
+  claiming.value = order.id
+  claimError.value = ''
+  claimMutation.mutate(order)
 }
 
-async function changeStatus(order, status) {
+const changeStatusMutation = useMutation({
+  mutationFn: ({ order, status }: { order: Order; status: OrderStatus }) => orderApi.updateStatus(order.id, status),
+  onSuccess: (_res, { status }) => {
+    queryClient.invalidateQueries({ queryKey: queryKeys.orders.courierPool('delivering') })
+    if (status === 'DELIVERED') queryClient.invalidateQueries({ queryKey: queryKeys.orders.courierPool('available') })
+  },
+  onError: (err) => console.error('Failed to update order status:', err),
+  onSettled: () => { updating.value = null },
+})
+
+function changeStatus(order: Order, status: OrderStatus) {
   updating.value = order.id
-  try {
-    const res = await orderApi.updateStatus(order.id, status)
-    order.status = res.data.status ?? status
-    if (status === 'DELIVERED') orders.value = orders.value.filter(o => o.id !== order.id)
-  } catch (err) {
-    console.error('Failed to update order status:', err)
-  } finally { updating.value = null }
+  changeStatusMutation.mutate({ order, status })
 }
 
-function isLink(str) {
-  return /^https?:\/\//.test(str)
+function isLink(str: string | undefined) {
+  return !!str && /^https?:\/\//.test(str)
 }
 
-function formatPrice(val) {
+function formatPrice(val: number | string | undefined) {
   return Number(val || 0).toLocaleString() + ' UZS'
 }
 
-function formatDate(str) {
+function formatDate(str: string | undefined) {
   if (!str) return ''
   return new Date(str).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 
-function statusStyle(status) {
-  const map = {
+function statusStyle(status: OrderStatus) {
+  const map: Partial<Record<OrderStatus, string>> = {
     READY: 'background:rgba(168,85,247,0.15);color:#c084fc',
     DELIVERING: 'background:rgba(249,115,22,0.25);color:#f97316',
     DELIVERED: 'background:rgba(16,185,129,0.15);color:#34d399',
   }
   return map[status] ?? 'background:#1a2d4d;color:#94a3b8'
 }
-
-load()
 </script>

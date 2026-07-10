@@ -118,14 +118,31 @@
   </div>
 </template>
 
-<script setup>
-import { ref, computed, watch, onMounted, h } from 'vue'
+<script setup lang="ts">
+import { ref, computed, watch, h, type PropType, type Slot } from 'vue'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/vue-query'
 import { Users, Plus } from '@lucide/vue'
-import { usersApi, customersApi, couriersApi, restaurantOwnersApi, adminsApi, rolesApi } from '@/api/users'
+import { usersApi, customersApi, couriersApi, restaurantOwnersApi, adminsApi, rolesApi, type AdminPayload } from '@/api/users'
+import { queryKeys } from '@/api/queryKeys'
+
+type Tab = 'users' | 'customers' | 'couriers' | 'owners' | 'admins'
+
+interface Role {
+  id: number
+  name: string
+}
+
+interface UserRow {
+  id: number
+  name?: string
+  email?: string
+  role?: string
+  is_active?: boolean
+}
 
 const AdminField = {
-  props: ['label'],
-  setup(props, { slots }) {
+  props: { label: { type: String as PropType<string>, required: true } },
+  setup(props: { label: string }, { slots }: { slots: { default?: Slot } }) {
     return () => h('div', [
       h('label', { class: 'block text-xs font-medium text-zinc-500 mb-1.5' }, props.label),
       slots.default?.(),
@@ -133,7 +150,7 @@ const AdminField = {
   },
 }
 
-const tabs = [
+const tabs: { key: Tab; label: string }[] = [
   { key: 'users', label: 'All Users' },
   { key: 'customers', label: 'Customers' },
   { key: 'couriers', label: 'Couriers' },
@@ -141,24 +158,18 @@ const tabs = [
   { key: 'admins', label: 'Admins' },
 ]
 
-const activeTab = ref('users')
-const loading = ref(false)
-const data = ref({ users: [], customers: [], couriers: [], owners: [], admins: [] })
-const roles = ref([])
+const queryClient = useQueryClient()
+const activeTab = ref<Tab>('users')
 const showCreateAdmin = ref(false)
-const creating = ref(false)
 const createError = ref('')
-const adminForm = ref({ name: '', email: '', password: '', role_id: null })
-const roleModal = ref({ show: false, user: null, selectedRoleId: null })
+const adminForm = ref<AdminPayload>({ name: '', email: '', password: '', role_id: null })
+const roleModal = ref<{ show: boolean; user: UserRow | null; selectedRoleId: number | null }>({ show: false, user: null, selectedRoleId: null })
 
-const rows = computed(() => data.value[activeTab.value] ?? [])
-const counts = computed(() => Object.fromEntries(tabs.map(t => [t.key, data.value[t.key]?.length ?? 0])))
-
-const apiMap = {
+const apiMap: Record<Exclude<Tab, 'users'>, () => Promise<{ data: UserRow[] }>> = {
   customers: customersApi.getAll,
   couriers: couriersApi.getAll, owners: restaurantOwnersApi.getAll, admins: adminsApi.getAll,
 }
-const deleteApiMap = {
+const deleteApiMap: Record<Tab, (id: number) => Promise<unknown>> = {
   users: (id) => usersApi.remove(id), customers: (id) => customersApi.remove(id),
   couriers: (id) => couriersApi.remove(id), owners: (id) => restaurantOwnersApi.remove(id), admins: (id) => adminsApi.remove(id),
 }
@@ -166,63 +177,94 @@ const deleteApiMap = {
 // GET /users returns the shared users table directly (real id, email, role, is_active) —
 // using this instead of merging the per-role endpoints avoids acting on the wrong id,
 // since /customers, /couriers, /restaurant-owners expose their own table's id, not users.id.
-async function loadAllUsers() {
-  const res = await usersApi.getAll()
-  return res.data?.data ?? []
+async function fetchTab(tab: Tab): Promise<UserRow[]> {
+  if (tab === 'users') {
+    const res = await usersApi.getAll()
+    return res.data?.data ?? []
+  }
+  return (await apiMap[tab]()).data ?? []
 }
 
-async function loadTab(tab) {
-  if (data.value[tab].length > 0) return
-  loading.value = true
-  try { data.value[tab] = tab === 'users' ? await loadAllUsers() : (await apiMap[tab]()).data ?? [] }
-  catch { data.value[tab] = [] }
-  finally { loading.value = false }
+// One query per tab, cached independently by TanStack Query — switching tabs re-hits
+// the cache instead of refetching, replacing the old "if (data[tab].length) return" guard.
+const activeTabQuery = useQuery({
+  queryKey: computed(() => queryKeys.users.tab(activeTab.value)),
+  queryFn: () => fetchTab(activeTab.value),
+})
+const rows = computed(() => activeTabQuery.data.value ?? [])
+const loading = activeTabQuery.isLoading
+
+// Tab pill counts need every tab's data, not just the active one — fetch them all
+// (each hits the same per-tab cache the active-tab query above uses).
+const tabQueries = Object.fromEntries(
+  tabs.map(t => [t.key, useQuery({ queryKey: queryKeys.users.tab(t.key), queryFn: () => fetchTab(t.key) })])
+) as Record<Tab, ReturnType<typeof useQuery<UserRow[]>>>
+const counts = computed(() => Object.fromEntries(tabs.map(t => [t.key, tabQueries[t.key].data.value?.length ?? 0])))
+
+const rolesQuery = useQuery({
+  queryKey: queryKeys.roles.all,
+  queryFn: () => rolesApi.getAll().then(res => res.data ?? []),
+})
+const roles = computed<Role[]>(() => rolesQuery.data.value ?? [])
+watch(roles, (r) => { if (r.length && adminForm.value.role_id == null) adminForm.value.role_id = r[0].id })
+
+function errorMessage(e: unknown, fallback: string) {
+  return (e as { response?: { data?: { message?: string } } }).response?.data?.message ?? fallback
 }
 
-async function loadRoles() {
-  try { const res = await rolesApi.getAll(); roles.value = res.data ?? []; if (roles.value.length) adminForm.value.role_id = roles.value[0].id }
-  catch { roles.value = [] }
-}
+const activateMutation = useMutation({
+  mutationFn: (id: number) => usersApi.activate(id),
+  onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.users.tab('users') }),
+  onError: (e) => alert(errorMessage(e, 'Failed to activate user.')),
+})
+function activateUser(id: number) { activateMutation.mutate(id) }
 
-async function activateUser(id) {
-  try { await usersApi.activate(id); const u = data.value.users.find(u => u.id === id); if (u) u.is_active = true }
-  catch (e) { alert(e.response?.data?.message ?? 'Failed to activate user.') }
-}
-
-function openRoleModal(user) {
+function openRoleModal(user: UserRow) {
   roleModal.value = { show: true, user, selectedRoleId: roles.value[0]?.id ?? null }
 }
 
-async function updateRole() {
-  try { await usersApi.updateRole(roleModal.value.user.id, roleModal.value.selectedRoleId); roleModal.value.show = false; data.value.users = []; await loadTab('users') }
-  catch {}
+const updateRoleMutation = useMutation({
+  mutationFn: ({ userId, roleId }: { userId: number; roleId: number }) => usersApi.updateRole(userId, roleId),
+  onSuccess: () => {
+    roleModal.value.show = false
+    queryClient.invalidateQueries({ queryKey: queryKeys.users.tab('users') })
+  },
+})
+function updateRole() {
+  if (!roleModal.value.user || roleModal.value.selectedRoleId == null) return
+  updateRoleMutation.mutate({ userId: roleModal.value.user.id, roleId: roleModal.value.selectedRoleId })
 }
 
-async function removeRow(id) {
+const removeMutation = useMutation({
+  mutationFn: ({ tab, id }: { tab: Tab; id: number }) => deleteApiMap[tab](id),
+  onSuccess: (_res, { tab }) => queryClient.invalidateQueries({ queryKey: queryKeys.users.tab(tab) }),
+  onError: (e) => alert(errorMessage(e, 'Failed to delete this record.')),
+})
+function removeRow(id: number) {
   if (!confirm('Delete this record?')) return
-  try { await deleteApiMap[activeTab.value](id); data.value[activeTab.value] = data.value[activeTab.value].filter(r => r.id !== id) }
-  catch (e) { alert(e.response?.data?.message ?? 'Failed to delete this record.') }
+  removeMutation.mutate({ tab: activeTab.value, id })
 }
 
-async function createAdmin() {
-  creating.value = true; createError.value = ''
-  try {
-    const res = await adminsApi.create(adminForm.value)
-    data.value.admins.unshift(res.data)
+const createAdminMutation = useMutation({
+  mutationFn: () => adminsApi.create(adminForm.value),
+  onSuccess: () => {
+    queryClient.invalidateQueries({ queryKey: queryKeys.users.tab('admins') })
     showCreateAdmin.value = false
     adminForm.value = { name: '', email: '', password: '', role_id: roles.value[0]?.id ?? null }
     activeTab.value = 'admins'
-  } catch (e) { createError.value = e.response?.data?.message ?? 'Failed to create admin' }
-  finally { creating.value = false }
+  },
+  onError: (e) => { createError.value = errorMessage(e, 'Failed to create admin') },
+})
+const creating = createAdminMutation.isPending
+function createAdmin() {
+  createError.value = ''
+  createAdminMutation.mutate()
 }
 
-function roleColor(role) {
-  const m = { ADMIN: 'bg-purple-500/15 text-purple-400', SUPERADMIN: 'bg-red-500/15 text-red-400', CUSTOMER: 'bg-blue-500/15 text-blue-400', COURIER: 'bg-green-500/15 text-green-400', RESTAURANT_OWNER: 'bg-orange-500/15 text-orange-400' }
-  return m[role] ?? 'bg-zinc-500/15 text-zinc-400'
+function roleColor(role: string | undefined) {
+  const m: Record<string, string> = { ADMIN: 'bg-purple-500/15 text-purple-400', SUPERADMIN: 'bg-red-500/15 text-red-400', CUSTOMER: 'bg-blue-500/15 text-blue-400', COURIER: 'bg-green-500/15 text-green-400', RESTAURANT_OWNER: 'bg-orange-500/15 text-orange-400' }
+  return (role && m[role]) ?? 'bg-zinc-500/15 text-zinc-400'
 }
-
-watch(activeTab, tab => loadTab(tab))
-onMounted(() => { loadTab('users'); loadRoles() })
 </script>
 
 <style scoped>

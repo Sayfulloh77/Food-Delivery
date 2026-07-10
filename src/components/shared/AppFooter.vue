@@ -47,7 +47,7 @@
   </footer>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { Heart } from '@lucide/vue'
 import BrandLogo from '@/components/shared/BrandLogo.vue'
 </script>

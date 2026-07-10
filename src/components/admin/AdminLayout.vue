@@ -60,7 +60,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Users, ClipboardList, LogOut, UtensilsCrossed } from '@lucide/vue'
@@ -77,14 +77,14 @@ const navItems = [
   { to: '/admin/restaurants', label: 'Restaurants', icon: UtensilsCrossed },
 ]
 
-const pageTitles = {
+const pageTitles: Record<string, string> = {
   '/admin/users': 'User Management',
   '/admin/orders': 'Orders',
   '/admin/restaurants': 'Restaurants',
 }
 
 const currentPageTitle = computed(() => pageTitles[route.path] ?? 'Admin Panel')
-const isActive = (path) => route.path === path
+const isActive = (path: string) => route.path === path
 const adminName = computed(() => authStore.user?.name ?? 'Admin')
 const adminRole = computed(() => authStore.user?.role ?? 'ADMIN')
 const adminInitial = computed(() => adminName.value.charAt(0).toUpperCase())

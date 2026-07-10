@@ -1,9 +1,11 @@
 // Single source of truth for order status labels, colors and pipeline order.
 // Used by customer, admin and courier order views.
 
-export const ORDER_STEPS = ['CREATED', 'CONFIRMED', 'PREPARING', 'READY', 'DELIVERING', 'DELIVERED']
+export const ORDER_STEPS = ['CREATED', 'CONFIRMED', 'PREPARING', 'READY', 'DELIVERING', 'DELIVERED'] as const
 
-export const ORDER_STATUS_STYLE = {
+export type OrderStatus = (typeof ORDER_STEPS)[number] | 'CANCELLED'
+
+export const ORDER_STATUS_STYLE: Record<OrderStatus, string> = {
   CREATED: 'background:rgba(59,130,246,0.15);color:#60a5fa;border:1px solid rgba(59,130,246,0.3)',
   CONFIRMED: 'background:rgba(249,115,22,0.15);color:#fb923c;border:1px solid rgba(249,115,22,0.3)',
   PREPARING: 'background:rgba(234,179,8,0.15);color:#facc15;border:1px solid rgba(234,179,8,0.3)',
@@ -13,7 +15,7 @@ export const ORDER_STATUS_STYLE = {
   CANCELLED: 'background:rgba(239,68,68,0.1);color:#f87171;border:1px solid rgba(239,68,68,0.2)',
 }
 
-export const ORDER_STATUS_LABEL = {
+export const ORDER_STATUS_LABEL: Record<OrderStatus, string> = {
   CREATED: 'Order placed',
   CONFIRMED: 'Confirmed',
   PREPARING: 'Preparing',
@@ -23,6 +25,6 @@ export const ORDER_STATUS_LABEL = {
   CANCELLED: 'Cancelled',
 }
 
-export function orderStatusStyle(status) {
-  return ORDER_STATUS_STYLE[status] ?? 'background:#1a2d4d;color:#94a3b8'
+export function orderStatusStyle(status: string): string {
+  return ORDER_STATUS_STYLE[status as OrderStatus] ?? 'background:#1a2d4d;color:#94a3b8'
 }

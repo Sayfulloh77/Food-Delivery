@@ -27,14 +27,14 @@
       </div>
 
       <!-- Loading -->
-      <div v-if="loading" class="space-y-3 animate-pulse">
+      <div v-if="isLoading" class="space-y-3 animate-pulse">
         <div v-for="n in 5" :key="n" class="rounded-2xl p-4 h-20" style="background:#0d1b35" />
       </div>
 
       <!-- Error -->
-      <div v-else-if="error" class="text-center py-20">
+      <div v-else-if="isError" class="text-center py-20">
         <p class="text-white font-bold">Failed to load notifications</p>
-        <button class="mt-4 px-5 py-2 rounded-xl text-black text-sm font-bold" style="background:#f97316" @click="load">Retry</button>
+        <button class="mt-4 px-5 py-2 rounded-xl text-black text-sm font-bold" style="background:#f97316" @click="() => refetch()">Retry</button>
       </div>
 
       <!-- Empty -->
@@ -79,49 +79,48 @@
   </div>
 </template>
 
-<script setup>
-import { ref, computed, onMounted } from 'vue'
-import { notificationApi } from '@/api/notification'
+<script setup lang="ts">
+import { computed, ref } from 'vue'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/vue-query'
+import { notificationApi, type AppNotification } from '@/api/notification'
+import { queryKeys } from '@/api/queryKeys'
 
-const notifications = ref([])
-const loading = ref(true)
-const error = ref(false)
+const queryClient = useQueryClient()
 const markAllError = ref('')
 
+const { data, isLoading, isError, refetch } = useQuery<AppNotification[]>({
+  queryKey: queryKeys.notifications.all,
+  queryFn: () => notificationApi.getAll().then(res => res.data),
+})
+
+const notifications = computed(() => data.value ?? [])
 const unreadCount = computed(() => notifications.value.filter((n) => !n.is_read).length)
 
-async function load() {
-  loading.value = true
-  error.value = false
-  try {
-    const res = await notificationApi.getAll()
-    notifications.value = res.data
-  } catch {
-    error.value = true
-  } finally {
-    loading.value = false
-  }
-}
+const markReadMutation = useMutation({
+  mutationFn: (id: string) => notificationApi.markRead(id),
+  onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.notifications.all }),
+})
 
-async function markRead(n) {
+const markAllReadMutation = useMutation({
+  mutationFn: () => notificationApi.markAllRead(),
+  onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.notifications.all }),
+  onError: (err) => {
+    const e = err as { response?: { data?: { message?: string } }; message?: string }
+    markAllError.value = e?.response?.data?.message || e?.message || 'Could not mark all as read — please try again.'
+  },
+})
+
+function markRead(n: AppNotification) {
   if (n.is_read) return
-  try {
-    await notificationApi.markRead(n.id)
-    n.is_read = true
-  } catch {}
+  markReadMutation.mutate(n.id)
 }
 
-async function markAllRead() {
-  try {
-    await notificationApi.markAllRead()
-    notifications.value.forEach(n => { n.is_read = true })
-  } catch (err) {
-    markAllError.value = err?.response?.data?.message || err?.message || 'Could not mark all as read — please try again.'
-    console.error('Failed to mark all as read:', err)
-  }
+function markAllRead() {
+  markAllError.value = ''
+  markAllReadMutation.mutate()
 }
 
-function timeAgo(dateStr) {
+function timeAgo(dateStr: string) {
   const diff = Date.now() - new Date(dateStr).getTime()
   const mins = Math.floor(diff / 60000)
   if (mins < 1) return 'just now'
@@ -130,6 +129,4 @@ function timeAgo(dateStr) {
   if (hrs < 24) return `${hrs}h ago`
   return `${Math.floor(hrs / 24)}d ago`
 }
-
-onMounted(load)
 </script>

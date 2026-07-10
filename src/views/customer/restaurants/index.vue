@@ -27,7 +27,7 @@
           </div>
           <div class="w-px h-8" style="background:#1a2d4d"></div>
           <div class="text-center">
-            <p class="text-2xl font-black text-emerald-400">{{ restaurants.filter(r => r.is_open).length }}</p>
+            <p class="text-2xl font-black text-emerald-400">{{ restaurants.filter((r: Restaurant) => r.is_open).length }}</p>
             <p class="text-xs text-slate-500 mt-0.5">Open now</p>
           </div>
           <div class="w-px h-8" style="background:#1a2d4d"></div>
@@ -68,7 +68,7 @@
         <div class="flex gap-2 overflow-x-auto pb-1" style="scrollbar-width:none">
           <button
             v-for="cat in categories"
-            :key="cat.id ?? cat.name"
+            :key="categoryKey(cat)"
             @click="selectCategory(cat)"
             class="shrink-0 px-4 py-2 rounded-full text-sm font-semibold transition-all border"
             :style="isActiveCategory(cat)
@@ -191,32 +191,52 @@
   </div>
 </template>
 
-<script setup>
-import { ref, watch, onMounted, onUnmounted } from 'vue'
+<script setup lang="ts">
+import { ref, computed, watch, onUnmounted } from 'vue'
+import { useQuery } from '@tanstack/vue-query'
 import { useRoute, useRouter } from 'vue-router'
 import { MapPin, ChevronLeft, ChevronRight } from '@lucide/vue'
-import { categoryApi, restaurantApi, adsApi, searchApi } from '@/api/restaurant'
+import { categoryApi, restaurantApi, adsApi, searchApi, type Category, type Restaurant } from '@/api/restaurant'
+import { queryKeys } from '@/api/queryKeys'
 import { useReveal } from '@/composables/useReveal'
 
 useReveal()
 
+interface SearchResultCategory {
+  restaurant: string
+}
+
+interface SearchResultItem {
+  id: number
+  name: string
+  img_product?: string | null
+  price: string
+  new_price?: string | null
+  category?: SearchResultCategory[]
+}
+
+interface SearchResponse {
+  restaurants?: Restaurant[]
+  items?: SearchResultItem[]
+}
+
+interface SearchGroup {
+  restaurant: Restaurant
+  items: SearchResultItem[]
+}
+
+type PillCategory = Category | { id: 'all'; name: string }
+
 const route = useRoute()
 const router = useRouter()
 
-const activeCategory = ref('all')
-const categories = ref([{ id: 'all', name: 'All' }])
-const restaurants = ref([])
-const allRestaurants = ref([])
-const loading = ref(false)
-const serverError = ref(false)
-const ads = ref([])
+const activeCategory = ref<string>('all')
 const activeSlide = ref(0)
-let autoPlayTimer = null
+let autoPlayTimer: ReturnType<typeof setInterval> | null = null
 
 const searchQuery = ref(typeof route.query.q === 'string' ? route.query.q : '')
-const searchGroups = ref([])
 
-function formatPrice(val) {
+function formatPrice(val: number | string | undefined | null) {
   if (!val) return '0 UZS'
   return Number(val).toLocaleString() + ' UZS'
 }
@@ -225,99 +245,118 @@ function clearSearch() {
   router.push({ path: '/restaurants' })
 }
 
-function isActiveCategory(cat) {
+function categoryKey(cat: PillCategory) {
+  return cat.id === 'all' ? 'all' : String(cat.id)
+}
+function isActiveCategory(cat: PillCategory) {
   return activeCategory.value === (cat.id === 'all' ? 'all' : cat.name)
 }
-function selectCategory(cat) {
+function selectCategory(cat: PillCategory) {
   activeCategory.value = cat.id === 'all' ? 'all' : cat.name
   if (route.query.q) router.push({ path: '/restaurants' })
 }
+
+// Ads carousel
+const { data: adsData } = useQuery<Advertisement[]>({
+  queryKey: queryKeys.ads.all,
+  queryFn: () => adsApi.getAll().then(res => res.data ?? []),
+})
+const ads = computed(() => adsData.value ?? [])
 function nextSlide() { activeSlide.value = (activeSlide.value + 1) % ads.value.length }
 function prevSlide() { activeSlide.value = (activeSlide.value - 1 + ads.value.length) % ads.value.length }
-function goToSlide(i) { activeSlide.value = i }
-function startAutoPlay() { if (ads.value.length > 1) autoPlayTimer = setInterval(nextSlide, 4000) }
-function stopAutoPlay() { clearInterval(autoPlayTimer) }
+function goToSlide(i: number) { activeSlide.value = i }
+function startAutoPlay() { if (autoPlayTimer) clearInterval(autoPlayTimer); if (ads.value.length > 1) autoPlayTimer = setInterval(nextSlide, 4000) }
+watch(ads, startAutoPlay)
+onUnmounted(() => { if (autoPlayTimer) clearInterval(autoPlayTimer) })
 
-async function fetchRestaurants(category) {
-  loading.value = true
-  serverError.value = false
-  try {
-    const res = category === 'all' ? await restaurantApi.getAll() : await categoryApi.getRestaurants(category)
-    restaurants.value = res.data ?? []
-    if (category === 'all') allRestaurants.value = restaurants.value
-  } catch (e) {
-    if (!e.response) serverError.value = true
-    restaurants.value = []
-  } finally {
-    loading.value = false
-  }
-}
+// Category pills
+const { data: categoryData } = useQuery({
+  queryKey: queryKeys.categories.all,
+  queryFn: () => categoryApi.getAll().then(res => res.data ?? []),
+})
+const categories = computed<PillCategory[]>(() => [{ id: 'all', name: 'All' }, ...(categoryData.value ?? [])])
+
+// Full restaurant list — used both as the "all" browse view and as the lookup table
+// search results are grouped against. TanStack Query caches this once and both uses share it.
+const allRestaurantsQuery = useQuery({
+  queryKey: queryKeys.restaurants.all,
+  queryFn: () => restaurantApi.getAll().then(res => res.data ?? []),
+})
+
+// Restaurants filtered by a specific (non-"all") category
+const categoryRestaurantsQuery = useQuery({
+  queryKey: computed(() => [...queryKeys.restaurants.all, 'category', activeCategory.value] as const),
+  queryFn: () => categoryApi.getRestaurants(activeCategory.value).then(res => res.data ?? []),
+  enabled: computed(() => !searchQuery.value && activeCategory.value !== 'all'),
+})
+
+const restaurants = computed<Restaurant[]>(() => {
+  if (activeCategory.value === 'all') return allRestaurantsQuery.data.value ?? []
+  return categoryRestaurantsQuery.data.value ?? []
+})
 
 // Matches dish names against the lowercased query, finds which restaurant
 // owns each matching dish, then groups: restaurant first, its matching
 // products underneath. Also keeps restaurants whose own name matches.
-async function runSearch(q) {
-  loading.value = true
-  serverError.value = false
-  try {
-    if (allRestaurants.value.length === 0) {
-      const allRes = await restaurantApi.getAll()
-      allRestaurants.value = allRes.data ?? []
-    }
-    const res = await searchApi.search(q)
-    const needle = q.toLowerCase()
-    const byId = new Map(allRestaurants.value.map(r => [r.id, r]))
-    const groups = new Map()
-
-    function groupFor(restaurant) {
-      if (!groups.has(restaurant.id)) groups.set(restaurant.id, { restaurant, items: [] })
-      return groups.get(restaurant.id)
-    }
-
-    for (const r of res.data?.restaurants ?? []) {
-      if (r.name?.toLowerCase().includes(needle)) groupFor(r)
-    }
-
-    for (const item of res.data?.items ?? []) {
-      if (!item.name?.toLowerCase().includes(needle)) continue
-      for (const c of item.category ?? []) {
-        const restaurant = byId.get(c.restaurant)
-        if (!restaurant) continue
-        const group = groupFor(restaurant)
-        if (!group.items.some(i => i.id === item.id)) group.items.push(item)
-      }
-    }
-
-    searchGroups.value = [...groups.values()]
-  } catch (e) {
-    if (!e.response) serverError.value = true
-    searchGroups.value = []
-  } finally {
-    loading.value = false
-  }
-}
-
-async function retry() {
-  if (searchQuery.value) await runSearch(searchQuery.value)
-  else await fetchRestaurants(activeCategory.value)
-}
-
-onMounted(async () => {
-  const [catRes] = await Promise.allSettled([
-    categoryApi.getAll(),
-    adsApi.getAll().then(r => { ads.value = r.data ?? []; startAutoPlay() }).catch(() => {}),
-  ])
-  if (catRes.status === 'fulfilled') {
-    categories.value = [{ id: 'all', name: 'All' }, ...(catRes.value.data ?? [])]
-  }
-  if (searchQuery.value) await runSearch(searchQuery.value)
-  else await fetchRestaurants('all')
+const searchResultQuery = useQuery({
+  queryKey: computed(() => queryKeys.search(searchQuery.value)),
+  queryFn: () => searchApi.search(searchQuery.value).then(res => res.data as SearchResponse),
+  enabled: computed(() => !!searchQuery.value),
 })
-onUnmounted(stopAutoPlay)
-watch(activeCategory, val => { if (!searchQuery.value) fetchRestaurants(val) })
+
+const searchGroups = computed<SearchGroup[]>(() => {
+  const data = searchResultQuery.data.value
+  if (!data) return []
+  const needle = searchQuery.value.toLowerCase()
+  const byId = new Map((allRestaurantsQuery.data.value ?? []).map((r: Restaurant) => [r.id, r] as const))
+  const groups = new Map<string, SearchGroup>()
+
+  function groupFor(restaurant: Restaurant) {
+    if (!groups.has(restaurant.id)) groups.set(restaurant.id, { restaurant, items: [] })
+    return groups.get(restaurant.id)!
+  }
+
+  for (const r of data.restaurants ?? []) {
+    if (r.name?.toLowerCase().includes(needle)) groupFor(r)
+  }
+
+  for (const item of data.items ?? []) {
+    if (!item.name?.toLowerCase().includes(needle)) continue
+    for (const c of item.category ?? []) {
+      const restaurant = byId.get(c.restaurant)
+      if (!restaurant) continue
+      const group = groupFor(restaurant)
+      if (!group.items.some(i => i.id === item.id)) group.items.push(item)
+    }
+  }
+
+  return [...groups.values()]
+})
+
+const loading = computed(() =>
+  searchQuery.value
+    ? (searchResultQuery.isLoading.value || allRestaurantsQuery.isLoading.value)
+    : (activeCategory.value === 'all' ? allRestaurantsQuery.isLoading.value : categoryRestaurantsQuery.isLoading.value)
+)
+
+// A request that never got a response (server down, no connection) is a different
+// problem than the server returning zero results — surface it as a server error, not "empty."
+function hasNoResponse(error: unknown) {
+  return !!error && !(error as { response?: unknown }).response
+}
+const serverError = computed(() =>
+  searchQuery.value
+    ? hasNoResponse(searchResultQuery.error.value)
+    : (activeCategory.value === 'all' ? hasNoResponse(allRestaurantsQuery.error.value) : hasNoResponse(categoryRestaurantsQuery.error.value))
+)
+
+function retry() {
+  if (searchQuery.value) searchResultQuery.refetch()
+  else if (activeCategory.value === 'all') allRestaurantsQuery.refetch()
+  else categoryRestaurantsQuery.refetch()
+}
+
 watch(() => route.query.q, (q) => {
   searchQuery.value = typeof q === 'string' ? q : ''
-  if (searchQuery.value) runSearch(searchQuery.value)
-  else fetchRestaurants(activeCategory.value)
 })
 </script>

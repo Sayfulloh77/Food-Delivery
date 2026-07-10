@@ -2,7 +2,7 @@
   <div class="min-h-screen" style="background:#060d1c">
 
     <!-- Loading -->
-    <div v-if="loading" class="max-w-5xl mx-auto px-4 py-8 animate-pulse space-y-6">
+    <div v-if="isLoading" class="max-w-5xl mx-auto px-4 py-8 animate-pulse space-y-6">
       <div class="h-72 rounded-2xl" style="background:#0d1b35" />
       <div class="grid grid-cols-2 sm:grid-cols-3 gap-4">
         <div v-for="n in 6" :key="n" class="h-52 rounded-2xl" style="background:#0d1b35" />
@@ -98,11 +98,13 @@
   </div>
 </template>
 
-<script setup>
-import { ref, onMounted } from 'vue'
+<script setup lang="ts">
+import { computed } from 'vue'
+import { useQuery } from '@tanstack/vue-query'
 import { useRoute } from 'vue-router'
 import { MapPin, Clock, ChevronLeft } from '@lucide/vue'
-import { restaurantApi } from '@/api/restaurant'
+import { restaurantApi, type MenuItem, type Restaurant } from '@/api/restaurant'
+import { queryKeys } from '@/api/queryKeys'
 import { useCartStore } from '@/stores/cart'
 import { useReveal } from '@/composables/useReveal'
 
@@ -110,37 +112,37 @@ useReveal()
 
 const route = useRoute()
 const cartStore = useCartStore()
-const loading = ref(true)
-const restaurant = ref(null)
-const menuItems = ref([])
+const restaurantId = computed(() => route.params.id as string)
 
-function formatPrice(val) {
+// Independent queries (not Promise.allSettled) so one failing doesn't blank out the other,
+// and each gets its own cache entry other pages (search, browse) can share.
+const { data: restaurant, isLoading: restaurantLoading } = useQuery<Restaurant>({
+  queryKey: computed(() => queryKeys.restaurants.detail(restaurantId.value)),
+  queryFn: () => restaurantApi.getById(restaurantId.value).then(res => res.data),
+})
+
+const { data: menuData, isLoading: menuLoading } = useQuery<MenuItem[]>({
+  queryKey: computed(() => queryKeys.restaurants.menu(restaurantId.value)),
+  queryFn: () => restaurantApi.getMenu(restaurantId.value).then(res => res.data ?? []),
+})
+
+const menuItems = computed(() => menuData.value ?? [])
+const isLoading = computed(() => restaurantLoading.value || menuLoading.value)
+
+function formatPrice(val: number | string | undefined | null) {
   if (!val) return '0 UZS'
   return Number(val).toLocaleString() + ' UZS'
 }
 
-function addToCart(item) {
+function addToCart(item: MenuItem) {
   cartStore.addItem({
     id: item.id,
     name: item.name,
     img_product: item.img_product,
     price: item.price,
     new_price: item.new_price ?? null,
-    restaurantId: route.params.id,
+    restaurantId: restaurantId.value,
     restaurantName: restaurant.value?.name ?? '',
   })
 }
-
-onMounted(async () => {
-  try {
-    const [restaurantRes, menuRes] = await Promise.allSettled([
-      restaurantApi.getById(route.params.id),
-      restaurantApi.getMenu(route.params.id),
-    ])
-    restaurant.value = restaurantRes.status === 'fulfilled' ? restaurantRes.value.data : null
-    menuItems.value = menuRes.status === 'fulfilled' ? (menuRes.value.data ?? []) : []
-  } finally {
-    loading.value = false
-  }
-})
 </script>

@@ -31,11 +31,11 @@
 
     <!-- RESTAURANTS -->
     <div v-else-if="activeTab === 'restaurants'" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-      <div v-if="rows.length === 0" class="col-span-3 flex flex-col items-center justify-center py-16 text-zinc-700">
+      <div v-if="restaurantRows.length === 0" class="col-span-3 flex flex-col items-center justify-center py-16 text-zinc-700">
         <UtensilsCrossed class="w-10 h-10 mb-2 opacity-40" /><p class="text-sm">No restaurants yet</p>
       </div>
       <div
-        v-for="r in rows" :key="r.id"
+        v-for="r in restaurantRows" :key="r.id"
         class="rounded-2xl overflow-hidden border transition-all hover:border-zinc-700"
         style="background:#0d1b35;border-color:#1a2d4d"
       >
@@ -58,7 +58,7 @@
 
     <!-- MENU ITEMS -->
     <div v-else-if="activeTab === 'items'" class="rounded-2xl border overflow-hidden" style="background:#060d1c;border-color:#1a2d4d">
-      <div v-if="rows.length === 0" class="flex flex-col items-center justify-center py-16 text-zinc-700">
+      <div v-if="itemRows.length === 0" class="flex flex-col items-center justify-center py-16 text-zinc-700">
         <ShoppingBag class="w-10 h-10 mb-2 opacity-40" /><p class="text-sm">No menu items yet</p>
       </div>
       <table v-else class="w-full text-sm">
@@ -72,7 +72,7 @@
           </tr>
         </thead>
         <tbody>
-          <tr v-for="item in rows" :key="item.id" class="border-b hover:bg-white/2 transition-colors" style="border-color:#1a2d4d">
+          <tr v-for="item in itemRows" :key="item.id" class="border-b hover:bg-white/2 transition-colors" style="border-color:#1a2d4d">
             <td class="px-5 py-3.5">
               <div class="flex items-center gap-3">
                 <div class="w-10 h-10 rounded-xl overflow-hidden shrink-0" style="background:#1a2d4d">
@@ -101,10 +101,10 @@
 
     <!-- CATEGORIES (per-restaurant item categories) -->
     <div v-else-if="activeTab === 'categories'" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-      <div v-if="rows.length === 0" class="col-span-4 flex flex-col items-center justify-center py-16 text-zinc-700">
+      <div v-if="categoryRows.length === 0" class="col-span-4 flex flex-col items-center justify-center py-16 text-zinc-700">
         <Tag class="w-10 h-10 mb-2 opacity-40" /><p class="text-sm">No categories yet</p>
       </div>
-      <div v-for="c in rows" :key="c.id" class="rounded-2xl p-4 border flex items-center justify-between" style="background:#0d1b35;border-color:#1a2d4d">
+      <div v-for="c in categoryRows" :key="c.id" class="rounded-2xl p-4 border flex items-center justify-between" style="background:#0d1b35;border-color:#1a2d4d">
         <span class="font-medium text-white truncate">{{ c.name }}</span>
         <button @click="deleteRow(c.id)" class="ml-2 shrink-0 text-red-500/60 hover:text-red-400 transition-colors">
           <Trash2 class="w-4 h-4" />
@@ -114,10 +114,10 @@
 
     <!-- ADS -->
     <div v-else-if="activeTab === 'ads'" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-      <div v-if="rows.length === 0" class="col-span-3 flex flex-col items-center justify-center py-16 text-zinc-700">
+      <div v-if="adRows.length === 0" class="col-span-3 flex flex-col items-center justify-center py-16 text-zinc-700">
         <Megaphone class="w-10 h-10 mb-2 opacity-40" /><p class="text-sm">No ads yet</p>
       </div>
-      <div v-for="ad in rows" :key="ad.id" class="rounded-2xl overflow-hidden border" style="background:#0d1b35;border-color:#1a2d4d">
+      <div v-for="ad in adRows" :key="ad.id" class="rounded-2xl overflow-hidden border" style="background:#0d1b35;border-color:#1a2d4d">
         <div class="h-40" style="background:#1a2d4d">
           <img v-if="ad.image_ads" :src="ad.image_ads" class="w-full h-full object-cover opacity-80" />
         </div>
@@ -210,19 +210,41 @@
   </div>
 </template>
 
-<script setup>
-import { ref, computed, watch, onMounted, h } from 'vue'
+<script setup lang="ts">
+import { ref, computed, watch, onMounted, h, type PropType, type Slot } from 'vue'
 import { Plus, UtensilsCrossed, ShoppingBag, Tag, Trash2, Megaphone } from '@lucide/vue'
-import { restaurantApi, menuitemApi, menuCategoryApi, adsApi } from '@/api/restaurant'
+import { restaurantApi, menuitemApi, menuCategoryApi, adsApi, type Restaurant, type MenuItem, type CategoryMenu, type Advertisement } from '@/api/restaurant'
 import { useAuthStore } from '@/stores/auth'
+
+type Tab = 'restaurants' | 'items' | 'categories' | 'ads'
+
+// Fields for every tab's create form live on one object — it's serialized straight into
+// FormData (buildFormData) — so all four tabs' fields are declared together, each optional.
+interface OwnerForm {
+  name?: string
+  description?: string
+  address?: string
+  restaurant_img?: File | null
+  categoriesRaw?: string
+  is_open?: boolean
+  restaurant?: string
+  category?: string | number
+  price?: string | number
+  discount?: string | number
+  delivery_time?: string
+  img_product?: File | null
+  discount_status?: boolean
+  promotion?: string
+  image_ads?: File | null
+}
 
 const authStore = useAuthStore()
 const ownerId = computed(() => authStore.user?.id)
-const isAdmin = computed(() => ['ADMIN', 'SUPERADMIN'].includes(authStore.user?.role))
+const isAdmin = computed(() => ['ADMIN', 'SUPERADMIN'].includes(authStore.user?.role ?? ''))
 
 const MField = {
-  props: ['label'],
-  setup(props, { slots }) {
+  props: { label: { type: String as PropType<string>, required: true } },
+  setup(props: { label: string }, { slots }: { slots: { default?: Slot } }) {
     return () => h('div', [
       h('label', { class: 'block text-xs font-medium text-zinc-500 mb-1.5' }, props.label),
       slots.default?.(),
@@ -230,49 +252,53 @@ const MField = {
   },
 }
 
-const tabs = [
+const tabs: { key: Tab; label: string }[] = [
   { key: 'restaurants', label: 'Restaurants' },
   { key: 'items', label: 'Menu Items' },
   { key: 'categories', label: 'Categories' },
   { key: 'ads', label: 'Ads' },
 ]
 
-const activeTab = ref('restaurants')
+const activeTab = ref<Tab>('restaurants')
 const loading = ref(false)
-const data = ref({ restaurants: [], items: [], categories: [], ads: [] })
+const data = ref<{ restaurants: Restaurant[]; items: MenuItem[]; categories: CategoryMenu[]; ads: Advertisement[] }>({ restaurants: [], items: [], categories: [], ads: [] })
 const showCreate = ref(false)
 const creating = ref(false)
 const createError = ref('')
-const form = ref({})
+const form = ref<OwnerForm>({})
 
 const restaurants = computed(() => data.value.restaurants)
-const rows = computed(() => data.value[activeTab.value] ?? [])
+const restaurantRows = computed(() => data.value.restaurants)
+const itemRows = computed(() => data.value.items)
+const categoryRows = computed(() => data.value.categories)
+const adRows = computed(() => data.value.ads)
 const counts = computed(() => Object.fromEntries(tabs.map(t => [t.key, data.value[t.key]?.length ?? 0])))
 const tabLabel = computed(() => tabs.find(t => t.key === activeTab.value)?.label ?? '')
 
-function categoriesForRestaurant(restaurantId) {
+function categoriesForRestaurant(restaurantId: string | number | undefined) {
   if (!restaurantId) return []
   return data.value.categories.filter(c => c.restaurant === restaurantId)
 }
 
-const fetchMap = {
-  restaurants: () => (isAdmin.value ? restaurantApi.getAll() : restaurantApi.getByOwner(ownerId.value)),
-  items: () => menuitemApi.getAll(),
-  categories: () => menuCategoryApi.getAll(),
-  ads: () => adsApi.getAll(),
-}
-
-const deleteApiMap = {
-  restaurants: (id) => restaurantApi.delete(id),
-  items: (id) => menuitemApi.delete(id),
-  categories: (id) => menuCategoryApi.delete(id),
-  ads: (id) => adsApi.delete(id),
-}
-
-async function loadTab(tab) {
+async function loadTab(tab: Tab) {
   if (data.value[tab].length > 0) return
   loading.value = true
-  try { const res = await fetchMap[tab](); data.value[tab] = res.data ?? [] }
+  try {
+    if (tab === 'restaurants') {
+      if (!isAdmin.value && !ownerId.value) { data.value.restaurants = []; return }
+      const res = isAdmin.value ? await restaurantApi.getAll() : await restaurantApi.getByOwner(ownerId.value as number)
+      data.value.restaurants = res.data ?? []
+    } else if (tab === 'items') {
+      const res = await menuitemApi.getAll()
+      data.value.items = res.data ?? []
+    } else if (tab === 'categories') {
+      const res = await menuCategoryApi.getAll()
+      data.value.categories = res.data ?? []
+    } else {
+      const res = await adsApi.getAll()
+      data.value.ads = res.data ?? []
+    }
+  }
   catch { data.value[tab] = [] }
   finally { loading.value = false }
 }
@@ -285,17 +311,20 @@ function openCreate() {
   if (activeTab.value === 'items' && data.value.categories.length === 0) loadTab('categories')
 }
 
-function onFile(e, field) { form.value[field] = e.target.files[0] ?? null }
+function onFile(e: Event, field: 'restaurant_img' | 'img_product' | 'image_ads') {
+  const target = e.target as HTMLInputElement
+  form.value[field] = target.files?.[0] ?? null
+}
 
 function buildFormData() {
   const fd = new FormData()
   for (const [k, v] of Object.entries(form.value)) {
     if (k === 'categoriesRaw' || v === null || v === undefined) continue
     const key = activeTab.value === 'items' && k === 'restaurant' ? 'restaurant_uuid' : k
-    fd.append(key, v)
+    fd.append(key, v instanceof File ? v : String(v))
   }
   if (activeTab.value === 'restaurants' && form.value.categoriesRaw) {
-    form.value.categoriesRaw.split(',').map(s => s.trim()).filter(Boolean).forEach(id => fd.append('categories', id))
+    String(form.value.categoriesRaw).split(',').map(s => s.trim()).filter(Boolean).forEach(id => fd.append('categories', id))
   }
   return fd
 }
@@ -304,24 +333,46 @@ async function submitCreate() {
   creating.value = true; createError.value = ''
   try {
     const fd = buildFormData()
-    let res
-    if (activeTab.value === 'restaurants') res = await restaurantApi.create(fd)
-    else if (activeTab.value === 'items') res = await menuitemApi.create(fd)
-    else if (activeTab.value === 'categories') res = await menuCategoryApi.create(fd)
-    else if (activeTab.value === 'ads') res = await adsApi.create(fd)
-    if (res?.data) data.value[activeTab.value].unshift(res.data)
+    if (activeTab.value === 'restaurants') {
+      const res = await restaurantApi.create(fd)
+      if (res.data) data.value.restaurants.unshift(res.data)
+    } else if (activeTab.value === 'items') {
+      const res = await menuitemApi.create(fd)
+      if (res.data) data.value.items.unshift(res.data)
+    } else if (activeTab.value === 'categories') {
+      const res = await menuCategoryApi.create(fd)
+      if (res.data) data.value.categories.unshift(res.data)
+    } else {
+      const res = await adsApi.create(fd)
+      if (res.data) data.value.ads.unshift(res.data)
+    }
     showCreate.value = false
-  } catch (e) { createError.value = e.response?.data?.detail ?? e.response?.data?.message ?? 'Failed to save' }
+  } catch (e) {
+    const err = e as { response?: { data?: { detail?: string; message?: string } } }
+    createError.value = err.response?.data?.detail ?? err.response?.data?.message ?? 'Failed to save'
+  }
   finally { creating.value = false }
 }
 
-async function deleteRow(id) {
+async function deleteRow(id: string | number) {
   if (!confirm('Delete this item?')) return
   try {
-    await deleteApiMap[activeTab.value](id)
-    data.value[activeTab.value] = data.value[activeTab.value].filter(r => r.id !== id)
+    if (activeTab.value === 'restaurants') {
+      await restaurantApi.delete(id as string)
+      data.value.restaurants = data.value.restaurants.filter(r => r.id !== id)
+    } else if (activeTab.value === 'items') {
+      await menuitemApi.delete(id as number)
+      data.value.items = data.value.items.filter(r => r.id !== id)
+    } else if (activeTab.value === 'categories') {
+      await menuCategoryApi.delete(id as number)
+      data.value.categories = data.value.categories.filter(r => r.id !== id)
+    } else {
+      await adsApi.delete(id as number)
+      data.value.ads = data.value.ads.filter(r => r.id !== id)
+    }
   } catch (e) {
-    alert(e.response?.data?.detail ?? e.response?.data?.message ?? 'Failed to delete')
+    const err = e as { response?: { data?: { detail?: string; message?: string } } }
+    alert(err.response?.data?.detail ?? err.response?.data?.message ?? 'Failed to delete')
   }
 }
 

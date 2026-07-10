@@ -1,8 +1,9 @@
 import http from './http'
 
-interface RegisterPayload  {
+export interface RegisterPayload  {
   name: string
   email: string
+  phone_number: string
   password: string
   role_id: number
   otpToken: string

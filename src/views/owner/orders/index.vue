@@ -15,25 +15,25 @@
           {{ s }}
         </button>
       </div>
-      <button class="flex items-center gap-1.5 text-sm font-semibold text-orange-400 hover:text-orange-300 transition" @click="load">
+      <button class="flex items-center gap-1.5 text-sm font-semibold text-orange-400 hover:text-orange-300 transition" @click="() => refetch()">
         <RefreshCw class="w-3.5 h-3.5" /> Refresh
       </button>
     </div>
 
     <!-- No restaurant yet -->
-    <div v-if="!loading && !restaurantId" class="text-center py-20 text-slate-600">
+    <div v-if="!isLoading && !restaurantId" class="text-center py-20 text-slate-600">
       No restaurant found for your account yet — add one under Restaurants &amp; Menu first.
     </div>
 
     <!-- Loading -->
-    <div v-else-if="loading" class="space-y-3 animate-pulse">
+    <div v-else-if="isLoading" class="space-y-3 animate-pulse">
       <div v-for="n in 5" :key="n" class="h-20 rounded-2xl" style="background:#0d1b35" />
     </div>
 
     <!-- Error -->
-    <div v-else-if="error" class="text-center py-20">
+    <div v-else-if="isError" class="text-center py-20">
       <p class="text-white font-bold">Failed to load orders — backend may be unavailable</p>
-      <button class="mt-4 px-5 py-2 rounded-xl text-black text-sm font-bold" style="background:#f97316" @click="load">Retry</button>
+      <button class="mt-4 px-5 py-2 rounded-xl text-black text-sm font-bold" style="background:#f97316" @click="() => refetch()">Retry</button>
     </div>
 
     <!-- Empty -->
@@ -85,7 +85,7 @@
                   class="text-xs rounded-lg px-2 py-1.5 font-semibold outline-none transition-all"
                   style="background:#0d1b35;border:1px solid #1a2d4d;color:#f97316"
                   :disabled="updating === order.id"
-                  @change="changeStatus(order, $event.target.value)"
+                  @change="changeStatus(order, ($event.target as HTMLSelectElement).value as OrderStatus)"
                 >
                   <option value="">Move to…</option>
                   <option v-for="s in nextStatus(order.status)" :key="s" :value="s">{{ s }}</option>
@@ -111,20 +111,24 @@
   </div>
 </template>
 
-<script setup>
-import { ref, computed, onMounted } from 'vue'
+<script setup lang="ts">
+import { ref, computed } from 'vue'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/vue-query'
 import { RefreshCw } from '@lucide/vue'
-import { orderApi } from '@/api/order'
+import { orderApi, type Order } from '@/api/order'
 import { restaurantApi } from '@/api/restaurant'
 import { useAuthStore } from '@/stores/auth'
+import { queryKeys } from '@/api/queryKeys'
+import type { OrderStatus } from '@/constants/orderStatus'
 
 const authStore = useAuthStore()
+const queryClient = useQueryClient()
 
-const STATUSES = ['CREATED','CONFIRMED','PREPARING','READY','DELIVERING','DELIVERED','CANCELLED']
+const STATUSES: OrderStatus[] = ['CREATED','CONFIRMED','PREPARING','READY','DELIVERING','DELIVERED','CANCELLED']
 
 // Owner only drives the kitchen side of the lifecycle — once READY, the courier
 // pool (self-claim) takes it through DELIVERING/DELIVERED.
-const STATUS_TRANSITIONS = {
+const STATUS_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
   CREATED: ['CONFIRMED', 'CANCELLED'],
   CONFIRMED: ['PREPARING', 'CANCELLED'],
   PREPARING: ['READY'],
@@ -134,62 +138,67 @@ const STATUS_TRANSITIONS = {
   CANCELLED: [],
 }
 
-const orders = ref([])
-const restaurantId = ref(null)
-const loading = ref(true)
-const error = ref(false)
-const filterStatus = ref('ALL')
-const updating = ref(null)
+const filterStatus = ref<'ALL' | OrderStatus>('ALL')
+const updating = ref<string | null>(null)
+
+// Chained query: first resolve this owner's restaurant id, then load its orders.
+const ownerRestaurantQuery = useQuery<string | null>({
+  queryKey: computed(() => queryKeys.restaurants.byOwner(authStore.user?.id ?? -1)),
+  queryFn: () => restaurantApi.getByOwner(authStore.user!.id!).then(res => res.data?.[0]?.id ?? null),
+  enabled: computed(() => !!authStore.user?.id),
+})
+const restaurantId = computed(() => ownerRestaurantQuery.data.value ?? null)
+
+const ordersQuery = useQuery<Order[]>({
+  queryKey: computed(() => queryKeys.orders.byRestaurant(restaurantId.value ?? '')),
+  queryFn: () => orderApi.getByRestaurant(restaurantId.value as string).then(res =>
+    (res.data ?? []).sort((a: Order, b: Order) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+  ),
+  enabled: computed(() => !!restaurantId.value),
+})
+const orders = computed(() => ordersQuery.data.value ?? [])
+const isLoading = computed(() => ownerRestaurantQuery.isLoading.value || ordersQuery.isLoading.value)
+const isError = computed(() => ownerRestaurantQuery.isError.value || ordersQuery.isError.value)
+function refetch() {
+  ownerRestaurantQuery.refetch()
+  ordersQuery.refetch()
+}
 
 const filtered = computed(() => {
   if (filterStatus.value === 'ALL') return orders.value
   return orders.value.filter(o => o.status === filterStatus.value)
 })
 
-function nextStatus(status) {
+function nextStatus(status: OrderStatus) {
   const arr = STATUS_TRANSITIONS[status] ?? []
   return arr.length ? arr : null
 }
 
-async function load() {
-  loading.value = true
-  error.value = false
-  try {
-    if (!restaurantId.value) {
-      const resList = await restaurantApi.getByOwner(authStore.user?.id)
-      restaurantId.value = resList.data?.[0]?.id ?? null
-    }
-    if (!restaurantId.value) { orders.value = []; return }
-    const res = await orderApi.getByRestaurant(restaurantId.value)
-    orders.value = (res.data ?? []).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-  } catch {
-    error.value = true
-  } finally {
-    loading.value = false
-  }
-}
+const changeStatusMutation = useMutation({
+  mutationFn: ({ order, status }: { order: Order; status: OrderStatus }) => orderApi.updateStatus(order.id, status),
+  onSuccess: () => {
+    if (restaurantId.value) queryClient.invalidateQueries({ queryKey: queryKeys.orders.byRestaurant(restaurantId.value) })
+  },
+  onSettled: () => { updating.value = null },
+})
 
-async function changeStatus(order, status) {
+function changeStatus(order: Order, status: OrderStatus | '') {
   if (!status) return
   updating.value = order.id
-  try {
-    const res = await orderApi.updateStatus(order.id, status)
-    order.status = res.data.status ?? status
-  } catch {}
-  finally { updating.value = null }
+  changeStatusMutation.mutate({ order, status })
 }
 
-function formatPrice(val) {
+function formatPrice(val: number | string | undefined) {
   return Number(val || 0).toLocaleString() + ' UZS'
 }
 
-function formatDate(str) {
+function formatDate(str: string | undefined) {
   if (!str) return ''
   return new Date(str).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 
-function statusStyle(status) {
-  const map = {
+function statusStyle(status: OrderStatus) {
+  const map: Record<OrderStatus, string> = {
     CREATED: 'background:rgba(59,130,246,0.15);color:#60a5fa',
     CONFIRMED: 'background:rgba(249,115,22,0.15);color:#fb923c',
     PREPARING: 'background:rgba(234,179,8,0.15);color:#facc15',
@@ -200,6 +209,4 @@ function statusStyle(status) {
   }
   return map[status] ?? 'background:#1a2d4d;color:#94a3b8'
 }
-
-onMounted(load)
 </script>

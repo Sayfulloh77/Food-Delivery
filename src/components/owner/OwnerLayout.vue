@@ -58,7 +58,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { UtensilsCrossed, LogOut, ClipboardList } from '@lucide/vue'
@@ -74,7 +74,7 @@ const navItems = [
   { to: '/owner/orders', label: 'Orders', icon: ClipboardList },
 ]
 
-const isActive = (path) => route.path === path
+const isActive = (path: string) => route.path === path
 const ownerName = computed(() => authStore.user?.name ?? 'Owner')
 const ownerInitial = computed(() => ownerName.value.charAt(0).toUpperCase())
 

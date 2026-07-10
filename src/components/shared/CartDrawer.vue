@@ -93,7 +93,7 @@
   </Transition>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ShoppingCart, X, Plus, Minus } from '@lucide/vue'
 import { useCartStore } from '@/stores/cart'
 import { useAuthStore } from '@/stores/auth'
@@ -103,7 +103,7 @@ const cartStore = useCartStore()
 const authStore = useAuthStore()
 const router = useRouter()
 
-function formatPrice(val) {
+function formatPrice(val: number | string | undefined) {
   if (!val) return '0 UZS'
   return Number(val).toLocaleString() + ' UZS'
 }

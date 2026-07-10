@@ -84,7 +84,7 @@
   </header>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { Search, ShoppingCart, ChevronDown, LogOut, ClipboardList, Bell } from '@lucide/vue'
@@ -98,7 +98,7 @@ const authStore = useAuthStore()
 const cartStore = useCartStore()
 const search = ref(typeof route.query.q === 'string' ? route.query.q : '')
 const dropdownOpen = ref(false)
-const dropdownRef = ref(null)
+const dropdownRef = ref<HTMLElement | null>(null)
 
 const userName = computed(() => authStore.user?.name ?? authStore.user?.role ?? 'Account')
 const userInitial = computed(() => userName.value.charAt(0).toUpperCase())
@@ -118,8 +118,8 @@ function handleLogout() {
   router.push('/restaurants')
 }
 
-function handleClickOutside(e) {
-  if (dropdownRef.value && !dropdownRef.value.contains(e.target)) dropdownOpen.value = false
+function handleClickOutside(e: MouseEvent) {
+  if (dropdownRef.value && !dropdownRef.value.contains(e.target as Node)) dropdownOpen.value = false
 }
 
 onMounted(() => document.addEventListener('click', handleClickOutside))
