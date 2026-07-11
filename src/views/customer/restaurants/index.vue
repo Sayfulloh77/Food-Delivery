@@ -196,7 +196,7 @@ import { ref, computed, watch, onUnmounted } from 'vue'
 import { useQuery } from '@tanstack/vue-query'
 import { useRoute, useRouter } from 'vue-router'
 import { MapPin, ChevronLeft, ChevronRight } from '@lucide/vue'
-import { categoryApi, restaurantApi, adsApi, searchApi, type Category, type Restaurant } from '@/api/restaurant'
+import { categoryApi, restaurantApi, adsApi, searchApi, type Category, type Restaurant, type Advertisement } from '@/api/restaurant'
 import { queryKeys } from '@/api/queryKeys'
 import { useReveal } from '@/composables/useReveal'
 
@@ -270,7 +270,7 @@ watch(ads, startAutoPlay)
 onUnmounted(() => { if (autoPlayTimer) clearInterval(autoPlayTimer) })
 
 // Category pills
-const { data: categoryData } = useQuery({
+const { data: categoryData } = useQuery<Category[]>({
   queryKey: queryKeys.categories.all,
   queryFn: () => categoryApi.getAll().then(res => res.data ?? []),
 })
@@ -278,13 +278,13 @@ const categories = computed<PillCategory[]>(() => [{ id: 'all', name: 'All' }, .
 
 // Full restaurant list — used both as the "all" browse view and as the lookup table
 // search results are grouped against. TanStack Query caches this once and both uses share it.
-const allRestaurantsQuery = useQuery({
+const allRestaurantsQuery = useQuery<Restaurant[]>({
   queryKey: queryKeys.restaurants.all,
   queryFn: () => restaurantApi.getAll().then(res => res.data ?? []),
 })
 
 // Restaurants filtered by a specific (non-"all") category
-const categoryRestaurantsQuery = useQuery({
+const categoryRestaurantsQuery = useQuery<Restaurant[]>({
   queryKey: computed(() => [...queryKeys.restaurants.all, 'category', activeCategory.value] as const),
   queryFn: () => categoryApi.getRestaurants(activeCategory.value).then(res => res.data ?? []),
   enabled: computed(() => !searchQuery.value && activeCategory.value !== 'all'),
@@ -298,7 +298,7 @@ const restaurants = computed<Restaurant[]>(() => {
 // Matches dish names against the lowercased query, finds which restaurant
 // owns each matching dish, then groups: restaurant first, its matching
 // products underneath. Also keeps restaurants whose own name matches.
-const searchResultQuery = useQuery({
+const searchResultQuery = useQuery<SearchResponse>({
   queryKey: computed(() => queryKeys.search(searchQuery.value)),
   queryFn: () => searchApi.search(searchQuery.value).then(res => res.data as SearchResponse),
   enabled: computed(() => !!searchQuery.value),

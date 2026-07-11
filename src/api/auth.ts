@@ -5,7 +5,9 @@ export interface RegisterPayload  {
   email: string
   phone_number: string
   password: string
-  role_id: number
+  // Omit for a plain customer signup — the backend defaults a missing role_id to CUSTOMER.
+  // Only send this when the user explicitly picked an elevated role (Courier, Restaurant Owner).
+  role_id?: number
   otpToken: string
 }
 

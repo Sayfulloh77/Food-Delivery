@@ -174,11 +174,11 @@
               <p v-if="passwordMismatch" class="text-red-400 text-xs mt-1">Passwords do not match</p>
             </div>
 
-            <div v-if="clientRoles.length">
+            <div>
               <label class="block text-xs font-medium text-slate-500 mb-1.5">I want to register as</label>
               <div class="space-y-2">
                 <button
-                  v-for="role in clientRoles" :key="role.id" type="button"
+                  v-for="role in registerRoleOptions" :key="role.id ?? 'customer'" type="button"
                   @click="selectedRoleId = role.id"
                   class="w-full text-left p-3 rounded-xl border transition-all"
                   :style="selectedRoleId === role.id ? 'background:rgba(249,115,22,0.1);border-color:#f97316' : 'background:#060d1c;border-color:#1a2d4d'"
@@ -222,10 +222,12 @@
 
 <script setup lang="ts">
 import { ref, computed, onUnmounted } from 'vue'
+import { useQuery, useMutation } from '@tanstack/vue-query'
 import { useRouter, useRoute } from 'vue-router'
 import { Eye, EyeOff, ShieldCheck, ArrowLeft, CheckCircle } from '@lucide/vue'
 import { authApi } from '@/api/auth'
 import { rolesApi } from '@/api/users'
+import { queryKeys } from '@/api/queryKeys'
 import { useAuthStore } from '@/stores/auth'
 import BrandLogo from '@/components/shared/BrandLogo.vue'
 
@@ -233,6 +235,11 @@ type Mode = 'signin' | 'signup' | 'otp' | 'details' | 'pending'
 
 interface ClientRole {
   id: number
+  name: string
+}
+
+interface RegisterRoleOption {
+  id: number | null
   name: string
 }
 
@@ -255,7 +262,6 @@ function redirectByRole() {
 }
 
 const mode = ref<Mode>('signin')
-const loading = ref(false)
 const error = ref('')
 const showPass = ref(false)
 const showConfirmPass = ref(false)
@@ -265,29 +271,30 @@ const signIn = ref({ email: '', password: '' })
 const signUp = ref({ email: '', name: '', phone: '', password: '', confirmPassword: '' })
 const otpToken = ref('')
 
-// /roles/for-client is public and only lists roles a user is allowed to self-declare —
-// ADMIN/SUPERADMIN are never in this list, so the picker can't offer them even by accident.
-const clientRoles = ref<ClientRole[]>([])
+// /roles/for-client only lists elevated roles a user can request (Courier, Restaurant
+// Owner) — it does NOT include CUSTOMER. The backend defaults a missing role_id to
+// CUSTOMER, so "Customer" here is a local pseudo-option (id: null) rather than a real
+// role fetched from the server, and it's the default selection.
 const selectedRoleId = ref<number | null>(null)
+
+const { data: clientRolesData } = useQuery<ClientRole[]>({
+  queryKey: queryKeys.roles.forClient,
+  queryFn: () => rolesApi.getForClient().then(res => res.data ?? []),
+})
+const clientRoles = computed(() => clientRolesData.value ?? [])
+const registerRoleOptions = computed<RegisterRoleOption[]>(() => [
+  { id: null, name: 'CUSTOMER' },
+  ...clientRoles.value,
+])
 
 const ROLE_LABELS: Record<string, { label: string; description: string }> = {
   CUSTOMER: { label: 'Customer', description: 'Order food from restaurants near you.' },
   COURIER: { label: 'Courier', description: 'Deliver orders and earn money.' },
   RESTAURANT_OWNER: { label: 'Restaurant Owner', description: 'List your restaurant and manage orders.' },
 }
-function roleInfo(role: ClientRole) {
+function roleInfo(role: RegisterRoleOption) {
   return ROLE_LABELS[role.name] ?? { label: role.name, description: '' }
 }
-
-async function loadClientRoles() {
-  try {
-    const res = await rolesApi.getForClient()
-    clientRoles.value = res.data ?? []
-    const customer = clientRoles.value.find(r => r.name === 'CUSTOMER')
-    selectedRoleId.value = customer?.id ?? clientRoles.value[0]?.id ?? null
-  } catch { clientRoles.value = [] }
-}
-loadClientRoles()
 
 const PASSWORD_RULE = /^(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{6,20}$/
 const passwordValid = computed(() => PASSWORD_RULE.test(signUp.value.password))
@@ -317,69 +324,83 @@ function authErrorMessage(e: unknown, fallback: string) {
   return err.response.data?.message ?? fallback
 }
 
-async function handleSendOtp() {
-  error.value = ''; loading.value = true
-  try { await authApi.sentOtp(signUp.value.email); code.value = ['', '', '', '', '']; mode.value = 'otp'; startCooldown() }
-  catch (e) { error.value = authErrorMessage(e, 'Failed to send code.') }
-  finally { loading.value = false }
+const sendOtpMutation = useMutation({
+  mutationFn: () => authApi.sentOtp(signUp.value.email),
+  onSuccess: () => { code.value = ['', '', '', '', '']; mode.value = 'otp'; startCooldown() },
+  onError: (e) => { error.value = authErrorMessage(e, 'Failed to send code.') },
+})
+function handleSendOtp() {
+  error.value = ''
+  sendOtpMutation.mutate()
 }
 
-async function handleVerifyOtp() {
-  error.value = ''; loading.value = true
-  try {
-    const res = await authApi.verifyOtp(signUp.value.email, codeValue.value)
+const verifyOtpMutation = useMutation({
+  mutationFn: () => authApi.verifyOtp(signUp.value.email, codeValue.value),
+  onSuccess: (res) => {
     otpToken.value = res.data?.otpToken ?? res.data?.token ?? res.data
     mode.value = 'details'
-  }
-  catch (e) { error.value = authErrorMessage(e, 'Invalid or expired code.') }
-  finally { loading.value = false }
+  },
+  onError: (e) => { error.value = authErrorMessage(e, 'Invalid or expired code.') },
+})
+function handleVerifyOtp() {
+  error.value = ''
+  verifyOtpMutation.mutate()
 }
 
-async function handleRegister() {
-  passwordTouched.value = true
-  if (passwordMismatch.value || !passwordValid.value || !selectedRoleId.value) return
-  error.value = ''; loading.value = true
-  try {
-    const roleId = selectedRoleId.value
-    const role = clientRoles.value.find(r => r.id === roleId)
-    const res = await authApi.register({
-      name: signUp.value.name,
-      email: signUp.value.email,
-      phone_number: signUp.value.phone,
-      password: signUp.value.password,
-      role_id: roleId,
-      otpToken: otpToken.value,
-    })
-
+const registerMutation = useMutation({
+  mutationFn: () => authApi.register({
+    name: signUp.value.name,
+    email: signUp.value.email,
+    phone_number: signUp.value.phone,
+    password: signUp.value.password,
+    // null means "Customer" (the pseudo-option) — omit role_id so the backend applies its default.
+    ...(selectedRoleId.value != null ? { role_id: selectedRoleId.value } : {}),
+    otpToken: otpToken.value,
+  }),
+  onSuccess: async (res) => {
     // Courier / Restaurant Owner accounts need admin approval before they can log in —
     // don't start a session for them, just show the pending screen.
+    const role = clientRoles.value.find(r => r.id === selectedRoleId.value)
     if (role && role.name !== 'CUSTOMER') {
       mode.value = 'pending'
       return
     }
-
     authStore.setTokens(res.data.access_token, res.data.refresh_token)
     await authStore.fetchMe()
     redirectByRole()
-  } catch (e) { error.value = authErrorMessage(e, 'Registration failed.') }
-  finally { loading.value = false }
+  },
+  onError: (e) => { error.value = authErrorMessage(e, 'Registration failed.') },
+})
+function handleRegister() {
+  passwordTouched.value = true
+  if (passwordMismatch.value || !passwordValid.value) return
+  error.value = ''
+  registerMutation.mutate()
 }
 
-async function handleSignIn() {
-  error.value = ''; loading.value = true
-  try {
-    const res = await authApi.login(signIn.value.email, signIn.value.password)
+const signInMutation = useMutation({
+  mutationFn: () => authApi.login(signIn.value.email, signIn.value.password),
+  onSuccess: async (res) => {
     authStore.setTokens(res.data.access_token, res.data.refresh_token)
     await authStore.fetchMe()
     redirectByRole()
-  } catch (e) { error.value = authErrorMessage(e, 'Invalid email or password.') }
-  finally { loading.value = false }
+  },
+  onError: (e) => { error.value = authErrorMessage(e, 'Invalid email or password.') },
+})
+function handleSignIn() {
+  error.value = ''
+  signInMutation.mutate()
 }
 
-async function handleResend() {
+const loading = computed(() =>
+  sendOtpMutation.isPending.value || verifyOtpMutation.isPending.value ||
+  registerMutation.isPending.value || signInMutation.isPending.value
+)
+
+function handleResend() {
   if (resendCooldown.value > 0) return
   code.value = ['', '', '', '', '']
-  await handleSendOtp()
+  handleSendOtp()
 }
 
 function onCodeInput(index: number) {

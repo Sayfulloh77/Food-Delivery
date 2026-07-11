@@ -211,9 +211,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, h, type PropType, type Slot } from 'vue'
+import { ref, computed, h, type PropType, type Slot } from 'vue'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/vue-query'
 import { Plus, UtensilsCrossed, ShoppingBag, Tag, Trash2, Megaphone } from '@lucide/vue'
 import { restaurantApi, menuitemApi, menuCategoryApi, adsApi, type Restaurant, type MenuItem, type CategoryMenu, type Advertisement } from '@/api/restaurant'
+import { queryKeys } from '@/api/queryKeys'
 import { useAuthStore } from '@/stores/auth'
 
 type Tab = 'restaurants' | 'items' | 'categories' | 'ads'
@@ -259,56 +261,59 @@ const tabs: { key: Tab; label: string }[] = [
   { key: 'ads', label: 'Ads' },
 ]
 
+const queryClient = useQueryClient()
 const activeTab = ref<Tab>('restaurants')
-const loading = ref(false)
-const data = ref<{ restaurants: Restaurant[]; items: MenuItem[]; categories: CategoryMenu[]; ads: Advertisement[] }>({ restaurants: [], items: [], categories: [], ads: [] })
 const showCreate = ref(false)
-const creating = ref(false)
 const createError = ref('')
 const form = ref<OwnerForm>({})
 
-const restaurants = computed(() => data.value.restaurants)
-const restaurantRows = computed(() => data.value.restaurants)
-const itemRows = computed(() => data.value.items)
-const categoryRows = computed(() => data.value.categories)
-const adRows = computed(() => data.value.ads)
-const counts = computed(() => Object.fromEntries(tabs.map(t => [t.key, data.value[t.key]?.length ?? 0])))
+// One query per tab (cached independently), same pattern as admin/users.
+const restaurantsQuery = useQuery<Restaurant[]>({
+  queryKey: queryKeys.restaurants.all,
+  queryFn: () => (isAdmin.value ? restaurantApi.getAll() : restaurantApi.getByOwner(ownerId.value as number)).then(res => res.data ?? []),
+  enabled: computed(() => isAdmin.value || !!ownerId.value),
+})
+const itemsQuery = useQuery<MenuItem[]>({
+  queryKey: queryKeys.menuItems.all,
+  queryFn: () => menuitemApi.getAll().then(res => res.data ?? []),
+})
+const categoriesQuery = useQuery<CategoryMenu[]>({
+  queryKey: queryKeys.menuCategories.all,
+  queryFn: () => menuCategoryApi.getAll().then(res => res.data ?? []),
+})
+const adsQuery = useQuery<Advertisement[]>({
+  queryKey: queryKeys.ads.all,
+  queryFn: () => adsApi.getAll().then(res => res.data ?? []),
+})
+
+const restaurants = computed(() => restaurantsQuery.data.value ?? [])
+const restaurantRows = restaurants
+const itemRows = computed(() => itemsQuery.data.value ?? [])
+const categoryRows = computed(() => categoriesQuery.data.value ?? [])
+const adRows = computed(() => adsQuery.data.value ?? [])
+const loading = computed(() => {
+  if (activeTab.value === 'restaurants') return restaurantsQuery.isLoading.value
+  if (activeTab.value === 'items') return itemsQuery.isLoading.value
+  if (activeTab.value === 'categories') return categoriesQuery.isLoading.value
+  return adsQuery.isLoading.value
+})
+const counts = computed(() => ({
+  restaurants: restaurants.value.length,
+  items: itemRows.value.length,
+  categories: categoryRows.value.length,
+  ads: adRows.value.length,
+}))
 const tabLabel = computed(() => tabs.find(t => t.key === activeTab.value)?.label ?? '')
 
 function categoriesForRestaurant(restaurantId: string | number | undefined) {
   if (!restaurantId) return []
-  return data.value.categories.filter(c => c.restaurant === restaurantId)
-}
-
-async function loadTab(tab: Tab) {
-  if (data.value[tab].length > 0) return
-  loading.value = true
-  try {
-    if (tab === 'restaurants') {
-      if (!isAdmin.value && !ownerId.value) { data.value.restaurants = []; return }
-      const res = isAdmin.value ? await restaurantApi.getAll() : await restaurantApi.getByOwner(ownerId.value as number)
-      data.value.restaurants = res.data ?? []
-    } else if (tab === 'items') {
-      const res = await menuitemApi.getAll()
-      data.value.items = res.data ?? []
-    } else if (tab === 'categories') {
-      const res = await menuCategoryApi.getAll()
-      data.value.categories = res.data ?? []
-    } else {
-      const res = await adsApi.getAll()
-      data.value.ads = res.data ?? []
-    }
-  }
-  catch { data.value[tab] = [] }
-  finally { loading.value = false }
+  return categoryRows.value.filter(c => c.restaurant === restaurantId)
 }
 
 function openCreate() {
   form.value = { is_open: true, discount_status: false, restaurant: '', category: '' }
   createError.value = ''
   showCreate.value = true
-  if (data.value.restaurants.length === 0) loadTab('restaurants')
-  if (activeTab.value === 'items' && data.value.categories.length === 0) loadTab('categories')
 }
 
 function onFile(e: Event, field: 'restaurant_img' | 'img_product' | 'image_ads') {
@@ -329,55 +334,53 @@ function buildFormData() {
   return fd
 }
 
-async function submitCreate() {
-  creating.value = true; createError.value = ''
-  try {
-    const fd = buildFormData()
-    if (activeTab.value === 'restaurants') {
-      const res = await restaurantApi.create(fd)
-      if (res.data) data.value.restaurants.unshift(res.data)
-    } else if (activeTab.value === 'items') {
-      const res = await menuitemApi.create(fd)
-      if (res.data) data.value.items.unshift(res.data)
-    } else if (activeTab.value === 'categories') {
-      const res = await menuCategoryApi.create(fd)
-      if (res.data) data.value.categories.unshift(res.data)
-    } else {
-      const res = await adsApi.create(fd)
-      if (res.data) data.value.ads.unshift(res.data)
-    }
+function errorMessage(e: unknown, fallback: string) {
+  const err = e as { response?: { data?: { detail?: string; message?: string } } }
+  return err.response?.data?.detail ?? err.response?.data?.message ?? fallback
+}
+
+const TAB_QUERY_KEY: Record<Tab, readonly unknown[]> = {
+  restaurants: queryKeys.restaurants.all,
+  items: queryKeys.menuItems.all,
+  categories: queryKeys.menuCategories.all,
+  ads: queryKeys.ads.all,
+}
+
+const createMutation = useMutation({
+  mutationFn: (fd: FormData) => {
+    if (activeTab.value === 'restaurants') return restaurantApi.create(fd)
+    if (activeTab.value === 'items') return menuitemApi.create(fd)
+    if (activeTab.value === 'categories') return menuCategoryApi.create(fd)
+    return adsApi.create(fd)
+  },
+  onSuccess: () => {
+    queryClient.invalidateQueries({ queryKey: TAB_QUERY_KEY[activeTab.value] })
     showCreate.value = false
-  } catch (e) {
-    const err = e as { response?: { data?: { detail?: string; message?: string } } }
-    createError.value = err.response?.data?.detail ?? err.response?.data?.message ?? 'Failed to save'
-  }
-  finally { creating.value = false }
+  },
+  onError: (e) => { createError.value = errorMessage(e, 'Failed to save') },
+})
+const creating = createMutation.isPending
+
+function submitCreate() {
+  createError.value = ''
+  createMutation.mutate(buildFormData())
 }
 
-async function deleteRow(id: string | number) {
+const deleteMutation = useMutation({
+  mutationFn: ({ tab, id }: { tab: Tab; id: string | number }) => {
+    if (tab === 'restaurants') return restaurantApi.delete(id as string)
+    if (tab === 'items') return menuitemApi.delete(id as number)
+    if (tab === 'categories') return menuCategoryApi.delete(id as number)
+    return adsApi.delete(id as number)
+  },
+  onSuccess: (_res, { tab }) => queryClient.invalidateQueries({ queryKey: TAB_QUERY_KEY[tab] }),
+  onError: (e) => alert(errorMessage(e, 'Failed to delete')),
+})
+
+function deleteRow(id: string | number) {
   if (!confirm('Delete this item?')) return
-  try {
-    if (activeTab.value === 'restaurants') {
-      await restaurantApi.delete(id as string)
-      data.value.restaurants = data.value.restaurants.filter(r => r.id !== id)
-    } else if (activeTab.value === 'items') {
-      await menuitemApi.delete(id as number)
-      data.value.items = data.value.items.filter(r => r.id !== id)
-    } else if (activeTab.value === 'categories') {
-      await menuCategoryApi.delete(id as number)
-      data.value.categories = data.value.categories.filter(r => r.id !== id)
-    } else {
-      await adsApi.delete(id as number)
-      data.value.ads = data.value.ads.filter(r => r.id !== id)
-    }
-  } catch (e) {
-    const err = e as { response?: { data?: { detail?: string; message?: string } } }
-    alert(err.response?.data?.detail ?? err.response?.data?.message ?? 'Failed to delete')
-  }
+  deleteMutation.mutate({ tab: activeTab.value, id })
 }
-
-watch(activeTab, tab => loadTab(tab))
-onMounted(() => loadTab('restaurants'))
 </script>
 
 <style scoped>
