@@ -227,7 +227,10 @@ const updateRoleMutation = useMutation({
   mutationFn: ({ userId, roleId }: { userId: number; roleId: number }) => usersApi.updateRole(userId, roleId),
   onSuccess: () => {
     roleModal.value.show = false
-    queryClient.invalidateQueries({ queryKey: queryKeys.users.tab('users') })
+    // A role change moves the user out of one tab's bucket (e.g. Owners) and into
+    // another (e.g. Customers) — invalidate every tab, not just "users", so both
+    // the old and new tab reflect it immediately instead of only after a manual refresh.
+    tabs.forEach(t => queryClient.invalidateQueries({ queryKey: queryKeys.users.tab(t.key) }))
   },
 })
 function updateRole() {
