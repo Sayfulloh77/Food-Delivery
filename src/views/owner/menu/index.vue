@@ -241,7 +241,8 @@ interface OwnerForm {
 }
 
 const authStore = useAuthStore()
-const ownerId = computed(() => authStore.user?.id)
+// The JWT only carries `user_id`, never `id` — decodeToken() doesn't remap it.
+const ownerId = computed(() => authStore.user?.id ?? authStore.user?.user_id)
 const isAdmin = computed(() => ['ADMIN', 'SUPERADMIN'].includes(authStore.user?.role ?? ''))
 
 const MField = {

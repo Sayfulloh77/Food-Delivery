@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { decodeToken, isTokenExpired, type JwtPayload } from '@/utils/token'
 import { authApi } from '@/api/auth'
+import { queryClient } from '@/queryClient'
 
 export const useAuthStore = defineStore('auth', () => {
   const accessToken = ref<string | null>(localStorage.getItem('accessToken') || null)
@@ -41,6 +42,10 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.removeItem('refreshToken')
     localStorage.removeItem('orderToken')
     localStorage.removeItem('user')
+    // Query cache lives in memory independent of Pinia/localStorage — without this,
+    // whatever was fetched while logged in (restaurants, orders, ...) keeps rendering
+    // after logout since nothing else tells it to forget.
+    queryClient.clear()
   }
 
   async function refreshTokens() {

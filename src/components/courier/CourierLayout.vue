@@ -1,4 +1,4 @@
-<template>
+  <template>
   <div class="flex h-screen" style="background:#080f22">
 
     <!-- Sidebar -->

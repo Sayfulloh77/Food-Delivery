@@ -141,11 +141,14 @@ const STATUS_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
 const filterStatus = ref<'ALL' | OrderStatus>('ALL')
 const updating = ref<string | null>(null)
 
+// The JWT only carries `user_id`, never `id` — decodeToken() doesn't remap it.
+const ownerId = computed(() => authStore.user?.id ?? authStore.user?.user_id)
+
 // Chained query: first resolve this owner's restaurant id, then load its orders.
 const ownerRestaurantQuery = useQuery<string | null>({
-  queryKey: computed(() => queryKeys.restaurants.byOwner(authStore.user?.id ?? -1)),
-  queryFn: () => restaurantApi.getByOwner(authStore.user!.id!).then(res => res.data?.[0]?.id ?? null),
-  enabled: computed(() => !!authStore.user?.id),
+  queryKey: computed(() => queryKeys.restaurants.byOwner(ownerId.value ?? -1)),
+  queryFn: () => restaurantApi.getByOwner(ownerId.value as number).then(res => res.data?.[0]?.id ?? null),
+  enabled: computed(() => !!ownerId.value),
 })
 const restaurantId = computed(() => ownerRestaurantQuery.data.value ?? null)
 

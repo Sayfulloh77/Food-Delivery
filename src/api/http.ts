@@ -1,4 +1,6 @@
 import axios, { AxiosError, type InternalAxiosRequestConfig } from 'axios'
+import { isTokenExpired } from '@/utils/token'
+import { queryClient } from '@/queryClient'
 
 interface RetryableConfig extends InternalAxiosRequestConfig {
   _retry?: boolean
@@ -16,6 +18,7 @@ function clearAndRedirect() {
   localStorage.removeItem('accessToken')
   localStorage.removeItem('refreshToken')
   localStorage.removeItem('user')
+  queryClient.clear()
   // Only force-redirect to auth from admin pages — public pages handle 401 silently
   if (window.location.pathname.startsWith('/admin')) {
     window.location.href = '/auth'
@@ -34,7 +37,10 @@ const instances = {
 Object.values(instances).forEach((instance) => {
   instance.interceptors.request.use((config) => {
     const token = localStorage.getItem('accessToken')
-    if (token) config.headers.Authorization = `Bearer ${token}`
+    // A stale/expired token must never be sent — some endpoints are public and only
+    // reject requests when they're handed an invalid bearer token, so an old expired
+    // token left over from a previous session breaks otherwise-anonymous access.
+    if (token && !isTokenExpired(token)) config.headers.Authorization = `Bearer ${token}`
     return config
   })
 
