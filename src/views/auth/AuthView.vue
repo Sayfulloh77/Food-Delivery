@@ -357,7 +357,7 @@ const registerMutation = useMutation({
     ...(selectedRoleId.value != null ? { role_id: selectedRoleId.value } : {}),
     otpToken: otpToken.value,
   }),
-  onSuccess: async (res) => {
+  onSuccess: async () => {
     // Courier / Restaurant Owner accounts need admin approval before they can log in —
     // don't start a session for them, just show the pending screen.
     const role = clientRoles.value.find(r => r.id === selectedRoleId.value)
@@ -365,7 +365,11 @@ const registerMutation = useMutation({
       mode.value = 'pending'
       return
     }
-    authStore.setTokens(res.data.access_token, res.data.refresh_token)
+    // /auth/register doesn't reliably hand back a usable access/refresh token pair —
+    // log in explicitly with the credentials just submitted, the same call handleSignIn
+    // uses, to get a real session instead of trusting whatever register's response contains.
+    const loginRes = await authApi.login(signUp.value.email, signUp.value.password)
+    authStore.setTokens(loginRes.data.access_token, loginRes.data.refresh_token)
     await authStore.fetchMe()
     redirectByRole()
   },
