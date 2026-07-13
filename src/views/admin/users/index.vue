@@ -17,13 +17,6 @@
       </button>
     </div>
 
-    <!-- Create Admin -->
-    <div v-if="activeTab === 'admins'" class="flex justify-end">
-      <button @click="showCreateAdmin = true" class="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-black transition-all hover:opacity-85" style="background:#f97316">
-        <Plus class="w-4 h-4" /> Create Admin
-      </button>
-    </div>
-
     <!-- Table -->
     <div class="rounded-2xl border overflow-hidden" style="background:#060d1c;border-color:#1a2d4d">
       <div v-if="loading" class="flex items-center justify-center py-16">
@@ -67,37 +60,13 @@
             <td class="px-5 py-3.5">
               <div class="flex items-center justify-end gap-2">
                 <button v-if="activeTab === 'users' && !row.is_active" @click="activateUser(row.id)" class="px-2.5 py-1 rounded-lg text-xs font-medium bg-green-500/10 text-green-400 hover:bg-green-500/20 transition-colors">Activate</button>
-                <button v-if="activeTab === 'users'" @click="openRoleModal(row)" class="px-2.5 py-1 rounded-lg text-xs font-medium bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 transition-colors">Role</button>
-                <button @click="removeRow(row.id)" class="px-2.5 py-1 rounded-lg text-xs font-medium bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors">Delete</button>
+                <button v-if="activeTab === 'users' && !isAdminRow(row)" @click="openRoleModal(row)" class="px-2.5 py-1 rounded-lg text-xs font-medium bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 transition-colors">Role</button>
+                <button v-if="activeTab !== 'admins' && !isAdminRow(row)" @click="removeRow(row.id)" class="px-2.5 py-1 rounded-lg text-xs font-medium bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors">Delete</button>
               </div>
             </td>
           </tr>
         </tbody>
       </table>
-    </div>
-
-    <!-- Create Admin Modal -->
-    <div v-if="showCreateAdmin" class="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-      <div class="rounded-2xl shadow-2xl w-full max-w-md p-6 border" style="background:#0d1b35;border-color:#1a2d4d">
-        <h3 class="text-lg font-bold text-white mb-5">Create Admin</h3>
-        <div class="space-y-4">
-          <AdminField label="Name"><input v-model="adminForm.name" type="text" placeholder="Full name" class="admin-input" /></AdminField>
-          <AdminField label="Email"><input v-model="adminForm.email" type="email" placeholder="admin@example.com" class="admin-input" /></AdminField>
-          <AdminField label="Password"><input v-model="adminForm.password" type="password" placeholder="••••••••" class="admin-input" /></AdminField>
-          <AdminField label="Role">
-            <select v-model="adminForm.role_id" class="admin-input">
-              <option v-for="r in roles" :key="r.id" :value="r.id">{{ r.name }}</option>
-            </select>
-          </AdminField>
-        </div>
-        <p v-if="createError" class="mt-3 text-sm text-red-400">{{ createError }}</p>
-        <div class="flex gap-3 mt-6">
-          <button @click="showCreateAdmin = false; createError = ''" class="flex-1 px-4 py-2.5 rounded-xl text-sm font-medium text-zinc-400 border border-zinc-800 hover:bg-white/5 transition-colors">Cancel</button>
-          <button @click="createAdmin" :disabled="creating" class="flex-1 px-4 py-2.5 rounded-xl text-sm font-bold text-black transition-all hover:opacity-85" style="background:#f97316">
-            {{ creating ? 'Creating...' : 'Create' }}
-          </button>
-        </div>
-      </div>
     </div>
 
     <!-- Change Role Modal -->
@@ -119,10 +88,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, h, type PropType, type Slot } from 'vue'
+import { ref, computed } from 'vue'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/vue-query'
-import { Users, Plus } from '@lucide/vue'
-import { usersApi, customersApi, couriersApi, restaurantOwnersApi, adminsApi, rolesApi, type AdminPayload } from '@/api/users'
+import { Users } from '@lucide/vue'
+import { usersApi, customersApi, couriersApi, restaurantOwnersApi, adminsApi, rolesApi } from '@/api/users'
 import { queryKeys } from '@/api/queryKeys'
 
 type Tab = 'users' | 'customers' | 'couriers' | 'owners' | 'admins'
@@ -140,16 +109,6 @@ interface UserRow {
   is_active?: boolean
 }
 
-const AdminField = {
-  props: { label: { type: String as PropType<string>, required: true } },
-  setup(props: { label: string }, { slots }: { slots: { default?: Slot } }) {
-    return () => h('div', [
-      h('label', { class: 'block text-xs font-medium text-zinc-500 mb-1.5' }, props.label),
-      slots.default?.(),
-    ])
-  },
-}
-
 const tabs: { key: Tab; label: string }[] = [
   { key: 'users', label: 'All Users' },
   { key: 'customers', label: 'Customers' },
@@ -160,9 +119,6 @@ const tabs: { key: Tab; label: string }[] = [
 
 const queryClient = useQueryClient()
 const activeTab = ref<Tab>('users')
-const showCreateAdmin = ref(false)
-const createError = ref('')
-const adminForm = ref<AdminPayload>({ name: '', email: '', password: '', role_id: null })
 const roleModal = ref<{ show: boolean; user: UserRow | null; selectedRoleId: number | null }>({ show: false, user: null, selectedRoleId: null })
 
 const apiMap: Record<Exclude<Tab, 'users'>, () => Promise<{ data: UserRow[] }>> = {
@@ -206,7 +162,6 @@ const rolesQuery = useQuery({
   queryFn: () => rolesApi.getAll().then(res => res.data ?? []),
 })
 const roles = computed<Role[]>(() => rolesQuery.data.value ?? [])
-watch(roles, (r) => { if (r.length && adminForm.value.role_id == null) adminForm.value.role_id = r[0].id })
 
 function errorMessage(e: unknown, fallback: string) {
   return (e as { response?: { data?: { message?: string } } }).response?.data?.message ?? fallback
@@ -248,20 +203,10 @@ function removeRow(id: number) {
   removeMutation.mutate({ tab: activeTab.value, id })
 }
 
-const createAdminMutation = useMutation({
-  mutationFn: () => adminsApi.create(adminForm.value),
-  onSuccess: () => {
-    queryClient.invalidateQueries({ queryKey: queryKeys.users.tab('admins') })
-    showCreateAdmin.value = false
-    adminForm.value = { name: '', email: '', password: '', role_id: roles.value[0]?.id ?? null }
-    activeTab.value = 'admins'
-  },
-  onError: (e) => { createError.value = errorMessage(e, 'Failed to create admin') },
-})
-const creating = createAdminMutation.isPending
-function createAdmin() {
-  createError.value = ''
-  createAdminMutation.mutate()
+// Admins/superadmins are managed deliberately (there's no self-service create/delete
+// for them anymore) — Role and Delete on the All Users table must not touch these rows.
+function isAdminRow(row: UserRow) {
+  return row.role === 'ADMIN' || row.role === 'SUPERADMIN'
 }
 
 function roleColor(role: string | undefined) {

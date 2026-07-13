@@ -3,6 +3,7 @@ import http from './http'
 export interface AdminPayload {
   name: string
   email: string
+  phone_number: string
   password?: string
   role_id: number | null
 }
