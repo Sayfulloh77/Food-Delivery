@@ -1,18 +1,19 @@
 <template>
   <header class="sticky top-0 z-30 border-b backdrop-blur-md" style="background:rgba(6,13,28,0.9);border-color:#1a2d4d">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center gap-4">
+    <div class="max-w-7xl mx-auto px-3 sm:px-6 h-16 flex items-center gap-2 sm:gap-4">
 
       <!-- Logo -->
-      <BrandLogo :size="34" :font-size="17" />
+      <BrandLogo :size="30" :font-size="15" class="sm:hidden" />
+      <BrandLogo :size="34" :font-size="17" class="hidden sm:flex" />
 
       <!-- Search -->
-      <div class="flex-1 relative max-w-xl mx-auto">
+      <div class="flex-1 relative min-w-0 max-w-xl mx-auto">
         <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
         <input
           v-model="search"
           type="text"
-          placeholder="Search for a dish or restaurant, press Enter…"
-          class="w-full pl-9 pr-4 py-2 rounded-xl text-sm text-white placeholder-slate-600 outline-none transition-all"
+          placeholder="Search dish or restaurant…"
+          class="w-full pl-9 pr-3 sm:pr-4 py-2 rounded-xl text-sm text-white placeholder-slate-600 outline-none transition-all"
           style="background:#0d1b35;border:1px solid #1a2d4d"
           onfocus="this.style.borderColor='#f97316'"
           onblur="this.style.borderColor='#1a2d4d'"

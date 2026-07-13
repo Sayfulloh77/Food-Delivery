@@ -26,6 +26,16 @@ body {
 
 button, a, [role="button"] { cursor: pointer; }
 
+/* iOS Safari (and some Android browsers) auto-zoom the page when a focused
+   input/select/textarea has a font-size under 16px — several components use
+   text-xs/text-sm (12-14px) form fields, which triggers it. Force 16px on
+   mobile only, so desktop sizing is unaffected. */
+@media (max-width: 640px) {
+  input, select, textarea {
+    font-size: 16px !important;
+  }
+}
+
 /* Fix browser autofill overriding dark input bg */
 input:-webkit-autofill,
 input:-webkit-autofill:hover,

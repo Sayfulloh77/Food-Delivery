@@ -2,12 +2,12 @@
   <div class="space-y-5">
 
     <!-- Tabs -->
-    <div class="flex gap-1 p-1 rounded-xl w-fit" style="background:#060d1c">
+    <div class="flex gap-1 p-1 rounded-xl w-full sm:w-fit overflow-x-auto" style="background:#060d1c">
       <button
         v-for="tab in tabs"
         :key="tab.key"
         @click="activeTab = tab.key"
-        class="px-4 py-2 rounded-lg text-sm font-medium transition-all"
+        class="shrink-0 px-4 py-2 rounded-lg text-sm font-medium transition-all"
         :style="activeTab === tab.key ? 'background:#f97316;color:#000' : 'color:#64748b'"
       >
         {{ tab.label }}
@@ -28,7 +28,8 @@
         <p class="text-sm">No {{ activeTab }} found</p>
       </div>
 
-      <table v-else class="w-full text-sm">
+      <div v-else class="overflow-x-auto">
+      <table class="w-full text-sm min-w-[640px]">
         <thead class="border-b" style="background:#0d1b35;border-color:#1a2d4d">
           <tr>
             <th class="text-left px-5 py-3 font-medium text-zinc-500">Name</th>
@@ -67,6 +68,7 @@
           </tr>
         </tbody>
       </table>
+      </div>
     </div>
 
     <!-- Change Role Modal -->

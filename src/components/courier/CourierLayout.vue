@@ -1,19 +1,32 @@
   <template>
   <div class="flex h-screen" style="background:#080f22">
 
+    <!-- Mobile overlay -->
+    <div v-if="sidebarOpen" class="fixed inset-0 z-30 bg-black/60 lg:hidden" @click="sidebarOpen = false" />
+
     <!-- Sidebar -->
-    <aside class="w-56 flex flex-col border-r shrink-0" style="background:#060d1c;border-color:#1a2d4d">
+    <aside
+      class="w-56 flex flex-col border-r shrink-0 fixed inset-y-0 left-0 z-40 transition-transform duration-200 lg:static lg:translate-x-0"
+      :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full'"
+      style="background:#060d1c;border-color:#1a2d4d"
+    >
 
       <!-- Logo -->
       <div class="h-16 flex items-center gap-2 px-4 border-b shrink-0" style="border-color:#1a2d4d">
         <BrandLogo :size="28" :font-size="13" />
-        <span class="ml-auto text-[9px] font-bold px-1.5 py-0.5 rounded" style="background:rgba(249,115,22,0.15);color:#f97316">COURIER</span>
+        <div class="ml-auto flex items-center gap-2">
+          <span class="text-[9px] font-bold px-1.5 py-0.5 rounded" style="background:rgba(249,115,22,0.15);color:#f97316">COURIER</span>
+          <button class="lg:hidden text-slate-500 hover:text-white transition-colors" @click="sidebarOpen = false">
+            <X class="w-5 h-5" />
+          </button>
+        </div>
       </div>
 
       <!-- Nav -->
       <nav class="flex-1 p-2 space-y-0.5">
         <RouterLink
           to="/courier/orders"
+          @click="sidebarOpen = false"
           class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all"
           style="background:rgba(249,115,22,0.15);color:#f97316;border-left:3px solid #f97316"
         >
@@ -44,10 +57,13 @@
 
     <!-- Main -->
     <div class="flex-1 flex flex-col min-w-0 overflow-hidden">
-      <header class="h-16 border-b flex items-center px-6 shrink-0" style="background:#060d1c;border-color:#1a2d4d">
-        <h1 class="text-base font-bold text-white">My Deliveries</h1>
+      <header class="h-16 border-b flex items-center gap-3 px-4 sm:px-6 shrink-0" style="background:#060d1c;border-color:#1a2d4d">
+        <button class="lg:hidden shrink-0 text-slate-400 hover:text-white transition-colors" @click="sidebarOpen = true">
+          <Menu class="w-5 h-5" />
+        </button>
+        <h1 class="text-base font-bold text-white truncate">My Deliveries</h1>
       </header>
-      <main class="flex-1 overflow-y-auto p-6" style="background:#080f22">
+      <main class="flex-1 overflow-y-auto p-4 sm:p-6" style="background:#080f22">
         <slot />
       </main>
     </div>
@@ -55,14 +71,15 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { Truck, LogOut } from '@lucide/vue'
+import { Truck, LogOut, Menu, X } from '@lucide/vue'
 import { useAuthStore } from '@/stores/auth'
 import BrandLogo from '@/components/shared/BrandLogo.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
+const sidebarOpen = ref(false)
 
 const courierName = computed(() => authStore.user?.name ?? 'Courier')
 const courierInitial = computed(() => courierName.value.charAt(0).toUpperCase())

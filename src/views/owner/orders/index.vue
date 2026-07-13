@@ -43,7 +43,8 @@
 
     <!-- Table -->
     <div v-else class="rounded-2xl border overflow-hidden" style="border-color:#1a2d4d">
-      <table class="w-full text-sm">
+      <div class="overflow-x-auto">
+      <table class="w-full text-sm min-w-[760px]">
         <thead>
           <tr style="background:#0d1b35;border-bottom:1px solid #1a2d4d">
             <th class="px-4 py-3 text-left text-xs font-bold text-slate-500">Order ID</th>
@@ -107,6 +108,7 @@
           </tr>
         </tbody>
       </table>
+      </div>
     </div>
   </div>
 </template>
