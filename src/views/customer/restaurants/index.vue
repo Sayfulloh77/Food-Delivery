@@ -283,7 +283,9 @@ const { data: adsData } = useQuery<AdSlide[]>({
     }
   },
 })
-const ads = computed(() => adsData.value ?? MOCK_ADS)
+// Only fall back to []: MOCK_ADS is already applied inside queryFn once the request
+// settles — falling back to it here too would flash a mock ad before the real one loads.
+const ads = computed(() => adsData.value ?? [])
 
 // An ad whose image is blocked (ad-blockers reject anything with "/ads/" in the
 // URL) is dropped from the carousel entirely rather than shown broken or with a
