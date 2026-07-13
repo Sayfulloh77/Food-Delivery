@@ -1,7 +1,7 @@
 import { QueryClient } from '@tanstack/vue-query'
 
 export const queryClient = new QueryClient({
-  defaultOptions: {
+  defaultOptions: { 
     queries: {
       // Backend data here changes from other users' actions (new orders, status
       // updates), so keep results fresh rather than trusting a long stale time.
