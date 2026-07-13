@@ -39,26 +39,25 @@
       </section>
 
       <!-- Ads Carousel -->
-      <section v-if="ads.length > 0" class="max-w-7xl mx-auto px-4 sm:px-6 pb-8">
+      <section v-if="visibleAds.length > 0" class="max-w-7xl mx-auto px-4 sm:px-6 pb-8">
         <div class="relative overflow-hidden rounded-2xl" style="border:1px solid #1a2d4d">
           <div class="flex transition-transform duration-500 ease-in-out" :style="{ transform: `translateX(-${activeSlide * 100}%)` }">
-            <div v-for="ad in ads" :key="ad.id" class="shrink-0 w-full h-52 sm:h-64 relative">
-              <img v-if="ad.image_ads" :src="ad.image_ads" :alt="ad.promotion" class="w-full h-full object-cover" />
-              <div v-else class="w-full h-full flex items-center justify-center font-bold text-xl text-white" style="background:#0d1b35">{{ ad.promotion }}</div>
+            <div v-for="ad in visibleAds" :key="ad.id" class="shrink-0 w-full h-52 sm:h-64 relative">
+              <img v-if="ad.image_ads" :src="ad.image_ads" :alt="ad.promotion" class="w-full h-full object-cover" @error="onAdImageError(ad.id)" />
               <div class="absolute inset-0 bg-linear-to-t from-black/80 via-black/20 to-transparent" />
               <span v-if="ad.promotion" class="absolute bottom-4 left-4 text-sm font-black px-3 py-1.5 rounded-full text-black" style="background:#f97316">
                 {{ ad.promotion }}
               </span>
             </div>
           </div>
-          <button v-if="ads.length > 1" class="absolute left-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/50 text-white flex items-center justify-center hover:bg-black/80 transition backdrop-blur-sm" @click="prevSlide">
+          <button v-if="visibleAds.length > 1" class="absolute left-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/50 text-white flex items-center justify-center hover:bg-black/80 transition backdrop-blur-sm" @click="prevSlide">
             <ChevronLeft class="w-4 h-4" />
           </button>
-          <button v-if="ads.length > 1" class="absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/50 text-white flex items-center justify-center hover:bg-black/80 transition backdrop-blur-sm" @click="nextSlide">
+          <button v-if="visibleAds.length > 1" class="absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/50 text-white flex items-center justify-center hover:bg-black/80 transition backdrop-blur-sm" @click="nextSlide">
             <ChevronRight class="w-4 h-4" />
           </button>
-          <div v-if="ads.length > 1" class="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5">
-            <button v-for="(_, i) in ads" :key="i" class="h-1.5 rounded-full transition-all" :class="i === activeSlide ? 'w-5' : 'bg-white/30 w-1.5'" :style="i === activeSlide ? 'background:#f97316' : ''" @click="goToSlide(i)" />
+          <div v-if="visibleAds.length > 1" class="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5">
+            <button v-for="(_, i) in visibleAds" :key="i" class="h-1.5 rounded-full transition-all" :class="i === activeSlide ? 'w-5' : 'bg-white/30 w-1.5'" :style="i === activeSlide ? 'background:#f97316' : ''" @click="goToSlide(i)" />
           </div>
         </div>
       </section>
@@ -196,14 +195,16 @@ import { ref, computed, watch, onUnmounted } from 'vue'
 import { useQuery } from '@tanstack/vue-query'
 import { useRoute, useRouter } from 'vue-router'
 import { MapPin, ChevronLeft, ChevronRight } from '@lucide/vue'
-import { categoryApi, restaurantApi, adsApi, searchApi, type Category, type Restaurant, type Advertisement } from '@/api/restaurant'
+import { categoryApi, restaurantApi, adsApi, searchApi, type Category, type Restaurant } from '@/api/restaurant'
 import { queryKeys } from '@/api/queryKeys'
 import { useReveal } from '@/composables/useReveal'
 
 useReveal()
 
 interface SearchResultCategory {
+  id: number
   restaurant: string
+  name: string
 }
 
 interface SearchResultItem {
@@ -212,7 +213,7 @@ interface SearchResultItem {
   img_product?: string | null
   price: string
   new_price?: string | null
-  category?: SearchResultCategory[]
+  categories?: SearchResultCategory[]
 }
 
 interface SearchResponse {
@@ -257,16 +258,47 @@ function selectCategory(cat: PillCategory) {
 }
 
 // Ads carousel
-const { data: adsData } = useQuery<Advertisement[]>({
+interface AdSlide {
+  id: number
+  promotion: string
+  image_ads?: string
+}
+
+// Real photos from a themed stock-photo proxy (not our own "/ads/" path, so ad-blockers
+// won't touch them) — used whenever the real ads API call fails.
+const MOCK_ADS: AdSlide[] = [
+  { id: -1, promotion: '1+1 on combos', image_ads: 'https://loremflickr.com/800/400/burger,food' },
+  { id: -2, promotion: '20% OFF your first order', image_ads: 'https://loremflickr.com/800/400/discount,sale' },
+  { id: -3, promotion: 'Free delivery today', image_ads: 'https://loremflickr.com/800/400/delivery,scooter' },
+]
+
+const { data: adsData } = useQuery<AdSlide[]>({
   queryKey: queryKeys.ads.all,
-  queryFn: () => adsApi.getAll().then(res => res.data ?? []),
+  queryFn: async () => {
+    try {
+      const res = await adsApi.getAll()
+      return res.data && res.data.length > 0 ? res.data : MOCK_ADS
+    } catch {
+      return MOCK_ADS
+    }
+  },
 })
-const ads = computed(() => adsData.value ?? [])
-function nextSlide() { activeSlide.value = (activeSlide.value + 1) % ads.value.length }
-function prevSlide() { activeSlide.value = (activeSlide.value - 1 + ads.value.length) % ads.value.length }
+const ads = computed(() => adsData.value ?? MOCK_ADS)
+
+// An ad whose image is blocked (ad-blockers reject anything with "/ads/" in the
+// URL) is dropped from the carousel entirely rather than shown broken or with a
+// fallback — it just isn't there.
+const failedAdIds = ref<number[]>([])
+function onAdImageError(id: number) {
+  if (!failedAdIds.value.includes(id)) failedAdIds.value = [...failedAdIds.value, id]
+}
+const visibleAds = computed(() => ads.value.filter(ad => !failedAdIds.value.includes(ad.id)))
+
+function nextSlide() { activeSlide.value = (activeSlide.value + 1) % visibleAds.value.length }
+function prevSlide() { activeSlide.value = (activeSlide.value - 1 + visibleAds.value.length) % visibleAds.value.length }
 function goToSlide(i: number) { activeSlide.value = i }
-function startAutoPlay() { if (autoPlayTimer) clearInterval(autoPlayTimer); if (ads.value.length > 1) autoPlayTimer = setInterval(nextSlide, 4000) }
-watch(ads, startAutoPlay)
+function startAutoPlay() { if (autoPlayTimer) clearInterval(autoPlayTimer); if (visibleAds.value.length > 1) autoPlayTimer = setInterval(nextSlide, 4000) }
+watch(visibleAds, () => { activeSlide.value = 0; startAutoPlay() })
 onUnmounted(() => { if (autoPlayTimer) clearInterval(autoPlayTimer) })
 
 // Category pills
@@ -322,7 +354,7 @@ const searchGroups = computed<SearchGroup[]>(() => {
 
   for (const item of data.items ?? []) {
     if (!item.name?.toLowerCase().includes(needle)) continue
-    for (const c of item.category ?? []) {
+    for (const c of item.categories ?? []) {
       const restaurant = byId.get(c.restaurant)
       if (!restaurant) continue
       const group = groupFor(restaurant)
