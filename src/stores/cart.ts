@@ -51,6 +51,14 @@ export const useCartStore = defineStore('cart', () => {
   function closeDrawer() { drawerOpen.value = false }
 
   function addItem(item: Omit<CartItem, 'qty'>) {
+    // Orders can only belong to one restaurant — the backend rejects a checkout whose
+    // items span more than one, so a cart can't silently mix restaurants either.
+    const fromDifferentRestaurant = items.value.length > 0 && items.value[0].restaurantId !== item.restaurantId
+    if (fromDifferentRestaurant) {
+      const ok = confirm(`Your cart has items from ${items.value[0].restaurantName ?? 'another restaurant'}. Adding this item will clear your current cart. Continue?`)
+      if (!ok) return
+      items.value = []
+    }
     const existing = items.value.find((i) => i.id === item.id)
     if (existing) { existing.qty++ } else { items.value.push({ ...item, qty: 1 }) }
     save()
